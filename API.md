@@ -1,59 +1,43 @@
 # TeleVault API
 
-TeleVault's desktop/web build exposes a local FastAPI server. The React frontend
-uses this API through `frontend/src/lib/api.ts`.
+The desktop application exposes a local FastAPI server used by the React frontend.
 
-Default local server:
+Default address:
 
 ```text
 http://127.0.0.1:8765
 ```
 
-The API is intended for the local TeleVault app, not for public internet
-hosting. Do not expose it directly to the internet.
+> **Security:** This API is intended for local application communication. Do not expose it directly to the public internet.
 
-Most command endpoints accept and return JSON.
-
-## Common Response Style
-
-Successful command responses vary by endpoint:
-
-```json
-{ "ok": true }
-```
-
-or:
-
-```json
-[
-  { "id": 123, "name": "Example" }
-]
-```
-
-FastAPI errors return HTTP errors with a message body.
+Most command endpoints use JSON request/response bodies.
 
 ## Health
 
 ### `GET /health`
 
-Checks whether the local backend is running.
-
-Example response:
+Checks whether the backend is running.
 
 ```json
-{ "status": "ok", "service": "TeleVault" }
+{
+  "status": "ok",
+  "service": "TeleVault"
+}
 ```
 
 ## Events
 
 ### `GET /events`
 
-Server-sent events stream used by the frontend for upload/download progress.
+Server-sent events stream used for transfer progress.
 
-Payloads are progress objects such as:
+Example payload:
 
 ```json
-{ "id": "transfer-id", "percent": 42 }
+{
+  "id": "transfer-id",
+  "percent": 42
+}
 ```
 
 ## Authentication
@@ -61,8 +45,6 @@ Payloads are progress objects such as:
 ### `POST /cmd_auth_request_code`
 
 Requests a Telegram login code.
-
-Request:
 
 ```json
 {
@@ -74,51 +56,37 @@ Request:
 
 ### `POST /cmd_auth_sign_in`
 
-Completes phone-code login.
-
-Request:
+Completes phone-code authentication.
 
 ```json
-{ "code": "12345" }
-```
-
-Response:
-
-```json
-{ "success": true }
-```
-
-If Telegram two-step verification is enabled:
-
-```json
-{ "success": false, "next_step": "password" }
+{
+  "code": "12345"
+}
 ```
 
 ### `POST /cmd_auth_check_password`
 
-Completes Telegram two-step verification.
-
-Request:
+Completes Telegram two-step verification when required.
 
 ```json
-{ "password": "telegram_cloud_password" }
+{
+  "password": "telegram_cloud_password"
+}
 ```
 
 ### `POST /cmd_connect`
 
-Reconnects using a saved local Telegram session.
-
-Request:
+Reconnects using a locally saved Telegram session.
 
 ```json
-{ "apiId": 123456 }
+{
+  "apiId": 123456
+}
 ```
-
-The backend may also use locally saved API credentials if available.
 
 ### `POST /cmd_logout`
 
-Logs out and removes local Telegram session data.
+Logs out and removes the local Telegram session data.
 
 ## Folders
 
@@ -126,65 +94,47 @@ Logs out and removes local Telegram session data.
 
 Lists TeleVault folders.
 
-Response:
-
-```json
-[
-  { "id": 123456789, "name": "Documents" }
-]
-```
-
 ### `POST /cmd_sync_all_folders`
 
-Scans Saved Messages and all TeleVault folders.
-
-Response:
-
-```json
-{
-  "folders": [],
-  "files": [],
-  "total_files": 0
-}
-```
+Scans Saved Messages and configured folders.
 
 ### `POST /cmd_create_folder`
 
 Creates a Telegram channel-backed folder.
 
-Request:
-
 ```json
-{ "name": "Documents" }
+{
+  "name": "Documents"
+}
 ```
 
 ### `POST /cmd_delete_folder`
 
 Deletes a folder/channel.
 
-Request:
-
 ```json
-{ "folderId": 123456789 }
+{
+  "folderId": 123456789
+}
 ```
 
 ## Files
 
 ### `POST /cmd_get_files`
 
-Lists files in a folder. Use `null` for Saved Messages.
+Lists files in a folder.
 
-Request:
+Use `null` for Saved Messages.
 
 ```json
-{ "folderId": null }
+{
+  "folderId": null
+}
 ```
 
 ### `POST /cmd_upload_file`
 
 Encrypts and uploads a local file.
-
-Request:
 
 ```json
 {
@@ -198,9 +148,7 @@ Request:
 
 ### `POST /cmd_download_file`
 
-Downloads, decrypts, verifies, and saves a file.
-
-Request:
+Downloads, decrypts, verifies and saves a file.
 
 ```json
 {
@@ -217,41 +165,25 @@ Request:
 
 Deletes a file manifest and related data where supported.
 
-Request:
-
-```json
-{ "messageId": 123, "folderId": null }
-```
-
 ### `POST /cmd_move_files`
 
-Moves one or more files between folders.
-
-Request:
-
-```json
-{
-  "messageIds": [123, 124],
-  "sourceFolderId": null,
-  "targetFolderId": 123456789
-}
-```
+Moves files between folders.
 
 ### `POST /cmd_search_global`
 
-Searches files across Telegram.
-
-Request:
+Searches files across configured Telegram storage.
 
 ```json
-{ "query": "invoice" }
+{
+  "query": "invoice"
+}
 ```
 
-## Preview And Streaming
+## Preview and Streaming
 
 ### `POST /cmd_get_thumbnail`
 
-Returns thumbnail metadata or data for supported files.
+Returns thumbnail information/data for supported files.
 
 ### `GET /thumbnail`
 
@@ -259,134 +191,95 @@ Retrieves cached/generated thumbnail data.
 
 ### `GET /stream`
 
-Streams a decrypted file for media playback.
+Streams decrypted media for playback.
 
-Query parameters:
+Example query:
 
 ```text
-path=<messageId>&folderId=<folderId>
+/stream?path=<messageId>&folderId=<folderId>
 ```
 
 ## Vault Recovery
 
 ### `POST /cmd_export_vault`
 
-Exports the local vault key as an encrypted base64 backup.
-
-Request:
-
-```json
-{ "password": "backup_password" }
-```
-
-### `POST /cmd_export_vault_file`
-
-Exports the encrypted vault backup to a file path.
-
-Request:
-
-```json
-{ "password": "backup_password", "path": "C:/path/to/recovery.tvault" }
-```
-
-### `POST /cmd_import_vault`
-
-Imports a base64 encrypted vault backup.
-
-Request:
+Exports an encrypted vault backup.
 
 ```json
 {
-  "backup": "base64_backup_data",
   "password": "backup_password"
 }
 ```
 
-### `POST /cmd_import_vault_file`
+### `POST /cmd_export_vault_file`
 
-Imports an encrypted vault backup from a file path.
-
-Request:
+Writes an encrypted vault backup to a local file.
 
 ```json
-{ "password": "backup_password", "path": "C:/path/to/recovery.tvault" }
+{
+  "password": "backup_password",
+  "path": "C:/path/to/recovery.tvault"
+}
 ```
+
+### `POST /cmd_import_vault`
+
+Imports an encrypted vault backup.
+
+### `POST /cmd_import_vault_file`
+
+Imports an encrypted vault backup from a file.
 
 ### `GET /cmd_vault_status`
 
-Returns whether a local vault key exists.
+Returns local vault-key status.
 
 ## Sharing
 
 ### `POST /cmd_create_share`
 
-Creates a local share record/link.
-
-Request:
-
-```json
-{
-  "messageId": 123,
-  "folderId": null,
-  "mode": "secure",
-  "expiresInSeconds": 86400
-}
-```
+Creates a local share record.
 
 ### `POST /cmd_revoke_share`
 
 Revokes a share record.
 
-Request:
-
-```json
-{ "revokeId": "share-id" }
-```
-
 ### `POST /cmd_list_shares`
 
 Lists share records.
-
-Request:
-
-```json
-{ "fileId": 123, "includeInactive": true }
-```
 
 ## Utility
 
 ### `POST /cmd_get_bandwidth`
 
-Returns local upload/download byte counters.
+Returns local transfer counters.
 
 ### `POST /cmd_storage_stats`
 
 Returns storage statistics.
 
-Request:
-
-```json
-{ "folderId": null, "allFolders": true }
-```
-
 ### `POST /cmd_clean_cache`
 
-Cleans local cache files.
+Cleans local cache data.
 
 ### `POST /cmd_pick_file`
 
-Desktop helper for native file picking.
+Desktop file-picker helper.
 
 ### `POST /cmd_pick_save_path`
 
-Desktop helper for native save path picking.
+Desktop save-path helper.
 
 ### `POST /cmd_is_network_available`
 
-Checks whether Telegram/network connectivity appears available.
+Checks apparent network/Telegram connectivity.
 
-## Android Note
+## Android
 
-The Android app does not expose this HTTP API. It uses native Kotlin UI and calls
-`android/app/src/main/python/android_commands.py` directly through Chaquopy.
-The command names are intentionally aligned with the desktop API where practical.
+The Android application does **not** expose this HTTP API.
+
+Android uses native Kotlin/Compose UI and calls the bundled Python command layer through Chaquopy. Command names are kept aligned with the desktop API where practical.
+
+## Source of Truth
+
+The implementation in `backend/` is the authoritative source for endpoint behavior. This document should be updated whenever the public local API changes.
