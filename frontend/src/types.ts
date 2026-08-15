@@ -1,0 +1,42 @@
+export interface TelegramFile {
+    id: number;
+    name: string;
+    size: number;
+    sizeStr: string; // Formatted size
+    created_at?: string;
+    type?: 'folder' | 'file'; // implied icon_type
+    // Add other fields if backend sends them
+}
+
+export interface TelegramFolder {
+    id: number;
+    name: string;
+    parent_id?: number;
+}
+
+export interface QueueItem {
+    id: string;
+    path: string;
+    folderId: number | null;
+    status: 'pending' | 'resuming' | 'uploading' | 'success' | 'error' | 'cancelled';
+    error?: string;
+    progress?: number; // 0-100
+    retryCount?: number;
+}
+
+export interface BandwidthStats {
+    up_bytes: number;
+    down_bytes: number;
+}
+
+export interface DownloadItem {
+    id: string;
+    messageId: number;
+    filename: string;
+    folderId: number | null;
+    savePath?: string;
+    status: 'pending' | 'resuming' | 'downloading' | 'success' | 'error' | 'cancelled';
+    error?: string;
+    progress?: number; // 0-100
+    retryCount?: number;
+}

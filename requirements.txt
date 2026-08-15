@@ -1,0 +1,24 @@
+# TeleVault Backend Dependencies
+# Install: pip install -r requirements.txt
+
+# Core
+fastapi==0.115.5
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+aiofiles==24.1.0
+
+# Telegram
+telethon==1.38.1
+
+# Cryptography
+cryptography==44.0.0
+argon2-cffi==24.1.0
+
+# Database
+# SQLite is built into Python
+
+# Desktop GUI
+pywebview==5.3.1
+
+# Build Tools (optional)
+pyinstaller==6.11.1

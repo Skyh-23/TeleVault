@@ -1,0 +1,272 @@
+@import "tailwindcss";
+
+/* ════════════════════════════════════════════════════════════════════
+   TeleVault — "Aurora Glass" Design System
+   Light-first frosted glass, pastel gradient orbs, soft typography.
+   ════════════════════════════════════════════════════════════════════ */
+
+@theme {
+  /* Aurora palette — light mode */
+  --color-aurora-bg: #f4f5fb;
+  --color-aurora-canvas: #eceef7;
+  --color-aurora-surface: #ffffff;
+  --color-aurora-ink: #322e55;
+  --color-aurora-ink-soft: #575280;
+  --color-aurora-muted: #9490b8;
+  --color-aurora-faint: #c9c6e0;
+  --color-aurora-line: rgba(96, 84, 168, 0.14);
+  --color-aurora-line-strong: rgba(96, 84, 168, 0.24);
+
+  --color-aurora-lavender: #a78bfa;
+  --color-aurora-violet: #8b5cf6;
+  --color-aurora-sky: #7cc4ff;
+  --color-aurora-cyan: #5eead4;
+  --color-aurora-mint: #6ee7b7;
+  --color-aurora-peach: #ffb6a1;
+  --color-aurora-rose: #f9a8d4;
+  --color-aurora-lemon: #fde68a;
+
+  /* Legacy telegram-* aliases (kept so older components keep compiling) */
+  --color-telegram-bg: #f4f5fb;
+  --color-telegram-surface: #ffffff;
+  --color-telegram-surface-hover: #f3f2fb;
+  --color-telegram-primary: #8b5cf6;
+  --color-telegram-secondary: #38bdf8;
+  --color-telegram-accent: #34d399;
+  --color-telegram-text: #322e55;
+  --color-telegram-subtext: #575280;
+  --color-telegram-muted: #9490b8;
+  --color-telegram-border: rgba(96, 84, 168, 0.14);
+  --color-telegram-border-subtle: rgba(96, 84, 168, 0.08);
+  --color-telegram-hover: rgba(96, 84, 168, 0.06);
+}
+
+/* ── Dark "Midnight Aurora" variant ────────────────────────────────── */
+:root.dark {
+  --color-aurora-bg: #12101f;
+  --color-aurora-canvas: #171430;
+  --color-aurora-surface: #1d1a35;
+  --color-aurora-ink: #f1effc;
+  --color-aurora-ink-soft: #b9b4dd;
+  --color-aurora-muted: #7d79a6;
+  --color-aurora-faint: #575277;
+  --color-aurora-line: rgba(190, 175, 255, 0.14);
+  --color-aurora-line-strong: rgba(190, 175, 255, 0.26);
+
+  --color-telegram-bg: #12101f;
+  --color-telegram-surface: #1d1a35;
+  --color-telegram-surface-hover: #232043;
+  --color-telegram-primary: #a78bfa;
+  --color-telegram-secondary: #38bdf8;
+  --color-telegram-accent: #34d399;
+  --color-telegram-text: #f1effc;
+  --color-telegram-subtext: #b9b4dd;
+  --color-telegram-muted: #7d79a6;
+  --color-telegram-border: rgba(190, 175, 255, 0.14);
+  --color-telegram-border-subtle: rgba(190, 175, 255, 0.08);
+  --color-telegram-hover: rgba(190, 175, 255, 0.07);
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  font-family: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: var(--color-aurora-bg);
+  color: var(--color-aurora-ink);
+  transition: background-color 0.45s cubic-bezier(0.16, 1, 0.3, 1), color 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Aurora canvas + floating orbs ─────────────────────────────────── */
+
+.aurora-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 12% 8%, rgba(167, 139, 250, 0.16) 0%, transparent 46%),
+    radial-gradient(110% 90% at 88% 4%, rgba(124, 196, 255, 0.16) 0%, transparent 44%),
+    radial-gradient(120% 100% at 82% 96%, rgba(255, 182, 161, 0.14) 0%, transparent 48%),
+    radial-gradient(120% 100% at 8% 92%, rgba(110, 231, 183, 0.13) 0%, transparent 48%),
+    var(--color-aurora-bg);
+}
+
+:root.dark .aurora-canvas {
+  background:
+    radial-gradient(120% 90% at 12% 8%, rgba(139, 92, 246, 0.18) 0%, transparent 46%),
+    radial-gradient(110% 90% at 88% 4%, rgba(56, 189, 248, 0.14) 0%, transparent 44%),
+    radial-gradient(120% 100% at 82% 96%, rgba(251, 113, 133, 0.12) 0%, transparent 48%),
+    radial-gradient(120% 100% at 8% 92%, rgba(52, 211, 153, 0.12) 0%, transparent 48%),
+    var(--color-aurora-bg);
+}
+
+.orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  opacity: 0.55;
+  will-change: transform;
+  animation: orb-drift 26s ease-in-out infinite alternate;
+}
+
+.orb-1 { width: 46vw; height: 46vw; left: -12vw; top: -14vw; background: radial-gradient(circle at 30% 30%, #c4b5fd, transparent 70%); }
+.orb-2 { width: 40vw; height: 40vw; right: -10vw; top: -8vw; background: radial-gradient(circle at 30% 30%, #a5d8ff, transparent 70%); animation-delay: -8s; }
+.orb-3 { width: 44vw; height: 44vw; left: 26vw; bottom: -22vw; background: radial-gradient(circle at 30% 30%, #ffd6c2, transparent 70%); animation-delay: -16s; }
+.orb-4 { width: 30vw; height: 30vw; right: 6vw; bottom: -6vw; background: radial-gradient(circle at 30% 30%, #b9f6dd, transparent 70%); animation-delay: -4s; }
+
+:root.dark .orb-1 { background: radial-gradient(circle at 30% 30%, #7c5cff, transparent 70%); }
+:root.dark .orb-2 { background: radial-gradient(circle at 30% 30%, #2f80ff, transparent 70%); }
+:root.dark .orb-3 { background: radial-gradient(circle at 30% 30%, #ff7e5f, transparent 70%); }
+:root.dark .orb-4 { background: radial-gradient(circle at 30% 30%, #00c987, transparent 70%); }
+
+@keyframes orb-drift {
+  0%   { transform: translate(0, 0) scale(1); }
+  50%  { transform: translate(4vw, 3vh) scale(1.12); }
+  100% { transform: translate(-3vw, -2vh) scale(0.94); }
+}
+
+/* ── Glass surfaces ────────────────────────────────────────────────── */
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.58);
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow:
+    0 24px 60px -24px rgba(64, 56, 128, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.glass-panel-strong {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(28px) saturate(1.6);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 32px 80px -28px rgba(64, 56, 128, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.glass-chip {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 8px 24px -12px rgba(64, 56, 128, 0.25);
+}
+
+:root.dark .glass-panel {
+  background: rgba(29, 26, 53, 0.5);
+  border: 1px solid rgba(190, 175, 255, 0.16);
+  box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+:root.dark .glass-panel-strong {
+  background: rgba(29, 26, 53, 0.72);
+  border: 1px solid rgba(190, 175, 255, 0.2);
+  box-shadow: 0 32px 80px -28px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+:root.dark .glass-chip {
+  background: rgba(29, 26, 53, 0.5);
+  border: 1px solid rgba(190, 175, 255, 0.16);
+  box-shadow: 0 8px 24px -12px rgba(0, 0, 0, 0.4);
+}
+
+/* Pastel gradient text */
+.text-aurora-gradient {
+  background: linear-gradient(92deg, #8b5cf6 0%, #38bdf8 50%, #f472b6 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+:root.dark .text-aurora-gradient {
+  background: linear-gradient(92deg, #c4b5fd 0%, #7cc4ff 50%, #f9a8d4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* Soft colored shadows for pastel accents */
+.shadow-lavender { box-shadow: 0 14px 34px -14px rgba(139, 92, 246, 0.45); }
+.shadow-sky      { box-shadow: 0 14px 34px -14px rgba(56, 189, 248, 0.45); }
+.shadow-mint     { box-shadow: 0 14px 34px -14px rgba(52, 211, 153, 0.45); }
+.shadow-peach    { box-shadow: 0 14px 34px -14px rgba(251, 146, 122, 0.45); }
+.shadow-rose     { box-shadow: 0 14px 34px -14px rgba(244, 114, 182, 0.45); }
+.shadow-lemon    { box-shadow: 0 14px 34px -14px rgba(250, 204, 21, 0.45); }
+
+/* ── Scrollbar ─────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(96, 84, 168, 0.22);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(139, 92, 246, 0.45); }
+
+/* ── Progress shimmer ──────────────────────────────────────────────── */
+
+@keyframes shimmer-slide {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.progress-aurora {
+  background: linear-gradient(90deg, #a78bfa 0%, #7cc4ff 35%, #5eead4 55%, #7cc4ff 75%, #a78bfa 100%);
+  background-size: 200% 100%;
+  animation: shimmer-slide 1.4s linear infinite;
+}
+
+.progress-rose {
+  background: linear-gradient(90deg, #f9a8d4 0%, #ffb6a1 35%, #fde68a 55%, #ffb6a1 75%, #f9a8d4 100%);
+  background-size: 200% 100%;
+  animation: shimmer-slide 1.4s linear infinite;
+}
+
+@keyframes indeterminate-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(320%); }
+}
+
+.animate-indeterminate {
+  animation: indeterminate-slide 1.1s ease-in-out infinite;
+}
+
+@keyframes float-soft {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.animate-float-soft { animation: float-soft 4s ease-in-out infinite; }
+
+/* ── Selection + inputs ────────────────────────────────────────────── */
+
+::selection {
+  background: rgba(167, 139, 250, 0.35);
+  color: inherit;
+}
+
+input, textarea {
+  caret-color: var(--color-aurora-violet);
+}
+
+:focus-visible {
+  outline: 2px solid rgba(139, 92, 246, 0.5);
+  outline-offset: 2px;
+}
+
+/* Legacy auth gradient class (kept for compatibility) */
+.auth-gradient {
+  background:
+    radial-gradient(120% 90% at 12% 8%, rgba(167, 139, 250, 0.2) 0%, transparent 46%),
+    radial-gradient(110% 90% at 88% 4%, rgba(124, 196, 255, 0.2) 0%, transparent 44%),
+    radial-gradient(120% 100% at 82% 96%, rgba(255, 182, 161, 0.18) 0%, transparent 48%),
+    var(--color-aurora-bg);
+}
