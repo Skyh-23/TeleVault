@@ -1,68 +1,94 @@
 # Security Policy
 
-## ⚠️ IMPORTANT: Never Commit Sensitive Data
+## Scope
 
-### Files to NEVER commit:
-- `backend/data/` - Contains session files and vault keys
-- `*.session` - Telegram session files
-- `vault.key` - Your encryption key (if this is lost, data is unrecoverable)
-- `api_hash.txt` - Your Telegram API credentials
-- `metadata.db` - Your file index database
-- Any file containing your phone number or API credentials
+TeleVault is a client-side encrypted storage project. Security depends on the application code, local device, cryptographic implementation, Telegram, and the user's handling of credentials and recovery data.
 
-### Before Pushing to GitHub:
+## Never Commit Secrets
 
-1. **Check .gitignore is working:**
-   ```bash
-   git status
-   ```
-   Should NOT show any `.session`, `vault.key`, or `backend/data/` files
+Do not commit:
 
-2. **Verify no secrets in code:**
-   ```bash
-   # Search for potential secrets
-   grep -r "api_id" --exclude-dir=node_modules --exclude-dir=.git
-   grep -r "api_hash" --exclude-dir=node_modules --exclude-dir=.git
-   grep -r "phone" --exclude-dir=node_modules --exclude-dir=.git
-   ```
+```text
+vault.key
+*.session
+api_id.txt
+api_hash.txt
+metadata.db
+backend/data/
+android/local.properties
+```
 
-3. **Clean history if you accidentally committed secrets:**
-   ```bash
-   # Remove file from all history
-   git filter-branch --force --index-filter \
-     "git rm --cached --ignore-unmatch backend/data/vault.key" \
-     --prune-empty --tag-name-filter cat -- --all
-   
-   # Force push (warning: destructive!)
-   git push origin --force --all
-   ```
+Also do not commit:
 
-## Security Best Practices
+- Telegram login codes
+- Telegram passwords
+- Phone numbers when stored as personal configuration
+- Recovery passwords
+- Private test files
+- Personal backups
+- Generated build artifacts containing sensitive data
 
-### For Users:
-- Never share your `vault.key` file
-- Use strong, unique passwords for 2FA
-- Keep API credentials private
-- Regularly backup your `vault.key` using the app's export feature
+## Vault Key
 
-### For Developers:
-- Use environment variables for testing credentials
-- Never hardcode API keys
-- Keep dependencies updated: `pip install --upgrade -r requirements.txt`
-- Review code for accidental credential logging
+The vault key is sensitive.
 
-## Reporting Security Issues
+If it is lost and no valid recovery backup exists, encrypted data may be unrecoverable.
 
-If you find a security vulnerability, please report it privately:
-- Email: security@yourdomain.com (replace with your email)
-- Do NOT create public GitHub issues for security bugs
+Do not send the vault key to other people or store it in public repositories.
 
-## Encryption Details
+## Telegram Sessions
 
-TeleVault uses:
-- **AES-256-GCM** for file encryption (NIST approved)
-- **Argon2id** for key derivation (memory-hard, resistant to brute force)
-- **32-byte salts** per file (prevents rainbow table attacks)
-- **Per-block nonces** (prevents replay attacks)
+Telegram session files can provide access to an authenticated account.
 
-Encryption is performed locally; keys never leave your device.
+Treat them as credentials.
+
+If a session file is exposed, revoke the affected session through Telegram's account security controls.
+
+## API Credentials
+
+Telegram API ID and API hash should not be hard-coded into public source code when they are being used as private configuration.
+
+Keep personal credentials outside the repository.
+
+## Local API
+
+The desktop FastAPI server is designed for local communication.
+
+Do not bind it to a public interface or expose it through port forwarding unless you have intentionally implemented authentication, authorization, transport security, and network controls appropriate for that deployment.
+
+## Cryptography
+
+TeleVault uses AES-256-GCM for authenticated encryption and Argon2id for password-based key derivation.
+
+The use of established cryptographic primitives does not constitute a complete security audit.
+
+Do not change cryptographic parameters or formats casually. Changes can affect compatibility and data recovery.
+
+## Reporting a Vulnerability
+
+If you discover a security issue, do not publish credentials, private keys, session files, or exploit details containing sensitive data in a public issue.
+
+Contact the repository maintainer privately through an appropriate GitHub contact method and include:
+
+- A short description
+- Affected component
+- Reproduction steps
+- Security impact
+- Suggested mitigation, if known
+
+## Data Safety
+
+TeleVault is under active development.
+
+Before trusting important data to a development build:
+
+1. Export a recovery backup.
+2. Store it separately.
+3. Test recovery.
+4. Keep an additional backup of irreplaceable files.
+
+## No Security Guarantee
+
+TeleVault has not undergone an independent professional security audit.
+
+The project is provided without warranty. Do not assume that encryption alone prevents every possible privacy or security failure.
