@@ -1,184 +1,88 @@
-# 🔐 AES-256-GCM — TeleVault Crypto Module (Documentation)
+# TeleVault Crypto & Performance Notes
 
 ## Overview
 
-**AES-256-GCM** is the default encryption mode for TeleVault, providing **high-speed, authenticated encryption** with strong real-world security guarantees.
+TeleVault uses AES-256-GCM for authenticated encryption.
 
-It replaces the slower custom cipher for production use while maintaining compatibility with TeleVault’s architecture.
+The crypto layer is designed to support encrypted file blocks while keeping transfer and storage operations practical for large files.
 
----
+## Why AES-256-GCM
 
-## 🚀 Why AES-256-GCM?
+AES-GCM provides:
 
-* ⚡ **Extremely fast** (hardware-accelerated on most CPUs)
-* 🔐 **256-bit encryption** (practically unbreakable)
-* 🛡️ **Built-in authentication** (detects tampering)
-* 🌍 **Industry standard** (used in TLS, VPNs, cloud storage)
+- Authenticated encryption
+- Hardware acceleration on many modern devices
+- A widely implemented cryptographic construction
+- Integrity verification as part of decryption
 
----
+TeleVault should treat the cryptographic implementation as security-sensitive code and avoid unnecessary custom cryptographic primitives.
 
-## 🧠 Design Principles
+## Design
 
-TeleVault uses AES-GCM with additional safeguards:
+The current design uses:
 
-* **Per-file salt** → ensures unique key per file
-* **Argon2id KDF** → secure password → key derivation
-* **Per-block encryption** → scalable for large files
-* **Block index in AAD** → prevents block reordering attacks
-* **No timestamp expiry** → files decrypt even after years
+- AES-256-GCM
+- Argon2id where password-derived keys are required
+- Per-file encryption metadata
+- Block-level encryption
+- Block index information as authenticated data
 
----
-
-## 🔑 Key Derivation
+Conceptually:
 
 ```text
-password + salt (32 bytes)
-    ↓
-Argon2id (memory-hard KDF)
-    ↓
-Master Key (32 bytes)
-    ↓
-HKDF
-    ↓
-enc_key (AES-256)
-metadata_key (AAD binding)
+Password / Vault Key
+        │
+        ▼
+     Argon2id
+        │
+        ▼
+   Encryption Key
+        │
+        ▼
+     AES-GCM
+        │
+        ▼
+   Encrypted Block
 ```
 
----
+## Block Encryption
 
-## 📦 Block Encryption Format
+Large files are processed as blocks rather than requiring the entire file to be held in memory.
 
-Each encrypted block follows this structure:
+A block contains encrypted data and the authentication information required for verification.
 
-```
-[1 byte version]
-[8 bytes block_index]
-[12 bytes nonce]
-[N bytes ciphertext]
-[16 bytes auth tag]
-```
+The block index can be authenticated as associated data so that blocks cannot be silently reordered without detection.
 
-### Fields:
+## Performance
 
-* **version** → identifies AES-GCM mode
-* **block_index** → prevents reordering/swapping
-* **nonce** → unique per block (critical for security)
-* **ciphertext** → encrypted data
-* **auth tag** → ensures integrity (tamper detection)
+Encryption performance depends on:
 
----
+- CPU hardware acceleration
+- File size
+- Block size
+- Storage speed
+- Memory pressure
+- Python/runtime overhead
+- Network speed
 
-## 🧩 AAD (Additional Authenticated Data)
+A fast cipher does not remove transfer bottlenecks. Upload and download performance are usually constrained by the slowest part of the complete pipeline.
 
-AAD binds metadata to encryption:
+## Important Security Rule
 
-```
-AAD = version + block_index + hash(salt)
-```
+Do not optimize cryptographic code by removing authentication, weakening key derivation, reusing nonces incorrectly, or inventing a custom cipher.
 
-### Purpose:
+Performance changes must preserve the security properties of the encryption format.
 
-* Prevents block swapping
-* Prevents cross-file attacks
-* Ensures correct file reconstruction
+## Compatibility
 
----
+Any change to:
 
-## 🔐 Encryption Flow
+- key derivation
+- encryption parameters
+- nonce handling
+- block format
+- manifest format
 
-```
-file → split into blocks
-    ↓
-for each block:
-    generate random nonce (12 bytes)
-    encrypt using AES-256-GCM
-    attach header + tag
-    upload to Telegram
-```
+may affect the ability to decrypt existing data.
 
----
-
-## 🔓 Decryption Flow
-
-```
-download block
-    ↓
-verify auth tag
-    ↓
-check block_index
-    ↓
-decrypt using AES-256-GCM
-    ↓
-append to file
-```
-
----
-
-## ⚠️ Security Requirements
-
-### 1. Nonce MUST be unique
-
-* Never reuse nonce with same key
-* TeleVault uses random nonce per block
-
----
-
-### 2. Always verify auth tag
-
-* If verification fails → reject block
-
----
-
-### 3. Strong password required
-
-* Weak passwords reduce security
-* Argon2id mitigates brute force
-
----
-
-### 4. Salt must be stored
-
-* Stored in manifest (not secret)
-* Required for key derivation
-
----
-
-## ⚡ Performance
-
-| Operation      | Expected Speed     |
-| -------------- | ------------------ |
-| 1 MB encrypt   | < 0.01 sec         |
-| 100 MB encrypt | ~1–2 sec           |
-| Large files    | near network speed |
-
----
-
-## 🆚 Compared to Sky256
-
-| Feature               | AES-GCM      | Sky256          |
-| --------------------- | ------------ | --------------- |
-| Speed                 | 🚀 Very fast | 🐢 Very slow    |
-| Security              | ✅ Proven     | ❓ Custom        |
-| Hardware acceleration | ✅ Yes        | ❌ No            |
-| Production ready      | ✅ Yes        | ⚠️ Experimental |
-
----
-
-## 🎯 Recommendation
-
-* Use **AES-256-GCM as default**
-* Keep Sky256 as **optional experimental mode**
-
----
-
-## 💬 Summary
-
-AES-256-GCM provides:
-
-* Strong encryption
-* Built-in integrity
-* High performance
-
-It is the **recommended and production-ready encryption mode** for TeleVault.
-
----
+Changes should therefore be versioned and tested against existing vault data before release.
