@@ -1,43 +1,41 @@
-# Building TeleVault Executable
+# Building TeleVault
+
+This document covers development and Windows executable builds.
 
 ## Prerequisites
 
-### 1. Install Python 3.8+
-Download from https://www.python.org/downloads/
+### Desktop
 
-### 2. Install Node.js 18+
-Download from https://nodejs.org/
+- Python 3.10+
+- Node.js 18+
+- Git
+- Telegram API ID and API hash
 
-### 3. Install Dependencies
+### Android
+
+- Android Studio
+- Android SDK
+- Python 3.12 for the Chaquopy dependency-packaging workflow
+
+## 1. Install Dependencies
+
+From the repository root:
 
 ```bash
-# Python dependencies
 pip install -r requirements.txt
+```
 
-# Frontend dependencies
+Install frontend dependencies:
+
+```bash
 cd frontend
 npm install
 cd ..
 ```
 
----
+## 2. Development Build
 
-## Method 1: Automated Build (Recommended)
-
-```bash
-# Full build (frontend + backend)
-python build.py
-
-# Output: dist/TeleVault.exe
-```
-
-**Build time**: ~3-5 minutes
-
----
-
-## Method 2: Manual Build
-
-### Step 1: Build Frontend
+Build the frontend:
 
 ```bash
 cd frontend
@@ -45,256 +43,118 @@ npm run build
 cd ..
 ```
 
-**Output**: `frontend/dist/` (static files)
-
-### Step 2: Build Backend with PyInstaller
+Run the backend in development mode:
 
 ```bash
-cd backend
-
-# Create spec file (or use existing TeleVault.spec)
-pyinstaller --name=TeleVault ^
-    --onefile ^
-    --windowed ^
-    --add-data="../frontend/dist;frontend/dist" ^
-    --hidden-import=telethon ^
-    --hidden-import=cryptography ^
-    --hidden-import=uvicorn ^
-    --hidden-import=fastapi ^
-    --hidden-import=argon2 ^
-    --optimize=2 ^
-    --upx-dir="C:\upx" ^
-    main.py
-
-cd ..
+python backend/main.py --dev
 ```
 
-**Output**: `backend/dist/TeleVault.exe`
+## 3. Windows Executable
 
----
+The recommended build command is:
 
-## Method 3: Development Build (No Frontend)
+```bash
+python build.py
+```
 
-For testing backend changes without rebuilding frontend:
+The packaged application is generated under:
+
+```text
+dist/
+```
+
+Do not commit build artifacts.
+
+## 4. Development Packaging
+
+For backend-focused development, where the frontend build is intentionally skipped:
 
 ```bash
 python build.py --dev
 ```
 
----
+Use this only when the current development workflow supports the expected output.
 
-## Optimizations
-
-### 1. UPX Compression (Optional)
-
-Reduces executable size by ~40%
+## 5. Manual Frontend Build
 
 ```bash
-# Download UPX from https://upx.github.io/
-# Extract to C:\upx\
-
-# PyInstaller will auto-detect UPX
+cd frontend
+npm run build
 ```
 
-### 2. Exclude Unnecessary Packages
+The generated static files are placed in:
 
-Edit `backend/TeleVault.spec`:
-
-```python
-excludes=[
-    'matplotlib',
-    'numpy',
-    'pandas',
-    'scipy',
-    'IPython',
-    'jupyter',
-    'PIL',
-    'tkinter',
-]
+```text
+frontend/dist/
 ```
 
-### 3. Strip Debug Symbols
+## 6. PyInstaller
 
-```python
-strip=True,  # in TeleVault.spec
+The project uses PyInstaller for Windows packaging. If a module is missing from a packaged build, inspect `build.py` and add the required hidden import or package data according to the actual dependency.
+
+Avoid copying old PyInstaller commands from previous project versions without checking the current `build.py`.
+
+## 7. UPX
+
+UPX compression is optional. If you use it, verify the packaged executable carefully after compression.
+
+Do not assume a fixed executable-size reduction; the result depends on the current dependency set and build configuration.
+
+## 8. Android
+
+From the repository root:
+
+```powershell
+cd android
+.\tools\vendor-python-deps.ps1
 ```
 
----
+Then open `android/` in Android Studio and build the application.
+
+If the Android SDK path is not detected, create:
+
+```text
+android/local.properties
+```
+
+from:
+
+```text
+android/local.properties.example
+```
+
+Never commit `local.properties`.
+
+## Build Hygiene
+
+Before committing:
+
+```bash
+git status
+```
+
+Make sure the repository does not contain:
+
+```text
+vault.key
+*.session
+api_id.txt
+api_hash.txt
+metadata.db
+backend/data/
+node_modules/
+dist/
+build/
+android/local.properties
+```
 
 ## Troubleshooting
 
-### Issue: "Module not found" error
+If the packaged application reports a missing Python module:
 
-**Solution**: Add to `hiddenimports` in spec file
+1. Confirm the dependency is installed in the build environment.
+2. Check whether PyInstaller needs a hidden import.
+3. Rebuild from a clean environment.
+4. Check the traceback before adding exclusions or hidden imports.
 
-```python
-hiddenimports=[
-    'telethon.tl.types',
-    'cryptography.hazmat.backends',
-    'uvicorn.logging',
-    # Add missing module here
-]
-```
-
-### Issue: Frontend not loading
-
-**Solution**: Verify frontend/dist exists
-
-```bash
-dir frontend\dist
-# Should show index.html and assets/
-```
-
-### Issue: Large executable size (>100MB)
-
-**Solutions**:
-1. Enable UPX compression
-2. Add excludes in spec file
-3. Use virtual environment to avoid bundling unused packages
-
-```bash
-# Create clean venv
-python -m venv venv
-.\venv\Scripts\activate
-pip install -r requirements.txt
-python build.py
-```
-
-### Issue: Antivirus blocking executable
-
-**Solution**: 
-- PyInstaller executables may trigger false positives
-- Add exclusion in Windows Defender
-- Or sign executable with code signing certificate
-
----
-
-## Testing the Executable
-
-```bash
-# Navigate to output
-cd dist
-
-# Run
-.\TeleVault.exe
-
-# Test features:
-# 1. Authentication
-# 2. File upload
-# 3. File download
-# 4. Folder creation
-```
-
----
-
-## Distribution
-
-### Create Release Package
-
-```bash
-# Create zip for distribution
-powershell Compress-Archive -Path dist\* -DestinationPath TeleVault-v1.0.0-Windows.zip
-```
-
-### Create Installer (Optional)
-
-Use **Inno Setup** or **NSIS**:
-
-```iss
-[Setup]
-AppName=TeleVault
-AppVersion=1.0.0
-DefaultDirName={pf}\TeleVault
-DefaultGroupName=TeleVault
-OutputBaseFilename=TeleVault-Setup
-Compression=lzma
-SolidCompression=yes
-
-[Files]
-Source: "dist\TeleVault.exe"; DestDir: "{app}"
-Source: "dist\README.txt"; DestDir: "{app}"
-
-[Icons]
-Name: "{group}\TeleVault"; Filename: "{app}\TeleVault.exe"
-```
-
----
-
-## Build Sizes
-
-**Expected sizes**:
-- Uncompressed: ~80-120 MB
-- With UPX: ~50-70 MB
-- Installed: ~100-150 MB (with cache)
-
-**Largest components**:
-- Python runtime: ~30 MB
-- Telethon + dependencies: ~20 MB
-- Cryptography libraries: ~15 MB
-- Frontend assets: ~5 MB
-
----
-
-## CI/CD with GitHub Actions
-
-Create `.github/workflows/build.yml`:
-
-```yaml
-name: Build
-
-on:
-  push:
-    tags:
-      - 'v*'
-
-jobs:
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-      
-      - name: Setup Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-      
-      - name: Build
-        run: |
-          pip install -r requirements.txt
-          python build.py
-      
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: TeleVault-Windows
-          path: dist/TeleVault.exe
-```
-
----
-
-## Build Checklist
-
-Before releasing:
-
-- [ ] Version number updated in `frontend/package.json`
-- [ ] Frontend builds without errors
-- [ ] Backend builds without errors
-- [ ] Executable runs on clean Windows machine
-- [ ] Authentication works
-- [ ] File operations work
-- [ ] No console window appears
-- [ ] Icon displays correctly
-- [ ] File size is reasonable (<100MB)
-
----
-
-## Support
-
-For build issues, check:
-- PyInstaller docs: https://pyinstaller.org/
-- GitHub Issues: https://github.com/YOUR_USERNAME/TeleVault/issues
+For runtime and authentication issues, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
