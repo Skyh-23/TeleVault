@@ -1,198 +1,286 @@
 # TeleVault
 
-Encrypted personal cloud storage powered by your Telegram account.
+> Private, client-side encrypted cloud storage powered by your Telegram account.
 
-TeleVault lets you upload files to Telegram as encrypted blocks, browse them as a
-drive, stream media, and restore your vault on another device with a recovery
-file. It includes a desktop/web build and a native Android project in the same
-repository.
+TeleVault is a personal cloud-storage application that uses Telegram as the remote storage layer while performing file encryption locally.
 
-> TeleVault is independent software and is not affiliated with Telegram.
-> It is a student-built research and education project made for learning,
-> transparency, and improving user-side file privacy.
+Files are split into blocks, encrypted before upload, stored through Telegram, and reconstructed after local decryption. The project includes a desktop/web application and a native Android application under active development.
 
-## Disclaimer
+> **Important:** TeleVault is independent software and is not affiliated with, endorsed by, or officially connected to Telegram.
 
-TeleVault is not an official Telegram product, not endorsed by Telegram, and not
-connected to Telegram FZ-LLC.
+## Features
 
-This project is provided for educational, research, and personal-use purposes.
-The goal is to explore user-controlled encryption and privacy-preserving storage.
-Use it responsibly and follow Telegram's terms and all applicable laws.
-
-No warranty is provided. The author and contributors are not responsible for
-account restrictions, data loss, corrupted backups, lost keys, service changes,
-misuse, or any other damage caused by using or modifying this software.
-
-The Android version is still in development. It is included for transparency and
-experimentation, but it should be tested carefully before storing important data.
-
-## Highlights
-
-- End-to-end local encryption before upload.
-- AES-256-GCM authenticated encryption for file blocks and manifests.
-- Argon2id-based key derivation for vault recovery and protected files.
-- Telegram account storage through Telethon.
-- Private Telegram channels work as folders.
-- Saved Messages support for default storage.
-- Manifest-based metadata so desktop and Android can read the same vault.
-- Resume-aware transfer logic in the desktop backend.
-- Media streaming support for desktop/web.
-- Native Android app under `android/`, not a WebView wrapper.
-- Windows `.exe` packaging support.
-
-## Apps In This Repository
-
-| Target | Location | Status |
-| --- | --- | --- |
-| Desktop/Web | `backend/` + `frontend/` | Main app |
-| Windows EXE | `build.py` | PyInstaller packaging |
-| Android | `android/` | Native Kotlin/Compose + bundled Python core, in development |
+- Client-side AES-256-GCM encryption
+- Argon2id-based key derivation
+- Encrypted file blocks
+- Encrypted vault manifest
+- Telegram Saved Messages storage
+- Private Telegram channel-backed folders
+- Upload and download resume support
+- File search and folder management
+- Media thumbnails and streaming
+- Vault export/import and password-protected recovery
+- Local share management
+- Storage and bandwidth statistics
+- React + TypeScript desktop/web interface
+- FastAPI + Python backend
+- Native Kotlin + Jetpack Compose Android app
+- Chaquopy-based Python core on Android
+- Windows executable packaging with PyInstaller
 
 ## How It Works
 
-1. TeleVault creates a local `vault.key` on first run.
-2. Each selected file is split into storage blocks.
-3. Blocks are encrypted locally before upload.
-4. Encrypted blocks are uploaded to Telegram.
-5. A small encrypted manifest records filename, size, block IDs, checksum, and
-   encryption metadata.
-6. Downloads read the manifest, fetch blocks, decrypt locally, and verify the
-   checksum.
+```text
+                     TELEVAULT
 
-Telegram sees encrypted block files and encrypted manifests, not the original
-file contents.
+                    Local Device
+                         │
+                         ▼
+                 Select / Read File
+                         │
+                         ▼
+                 Split into Blocks
+                         │
+                         ▼
+                 AES-256-GCM Encrypt
+                         │
+                         ▼
+              Encrypted Blocks + Manifest
+                         │
+                         ▼
+                    Telegram
+                         │
+                         ▼
+                 Remote Storage
+```
 
-## Security Model
+During download, the process is reversed:
 
-TeleVault keeps the encryption key local to the device.
+```text
+Telegram
+   │
+   ▼
+Encrypted Manifest
+   │
+   ▼
+Encrypted Blocks
+   │
+   ▼
+Local Decryption
+   │
+   ▼
+Integrity Verification
+   │
+   ▼
+Original File
+```
+
+The primary design goal is that file contents are encrypted locally before being uploaded.
+
+## Security
+
+TeleVault currently uses:
+
+- **AES-256-GCM** for authenticated encryption
+- **Argon2id** for password-based key derivation
+- Per-file encryption metadata
+- Block-level encryption
+- Block index information as authenticated data
+- Encrypted vault recovery data
+
+TeleVault has not undergone an independent professional security audit. Cryptographic primitives being used correctly does not by itself guarantee that the complete application is secure.
 
 Do not commit or share:
 
-- `vault.key`
-- `*.session`
-- `api_hash.txt`
-- `api_id.txt`
-- `metadata.db`
-- APK/EXE/ZIP build outputs
-- Android `local.properties`
+```text
+vault.key
+*.session
+api_id.txt
+api_hash.txt
+metadata.db
+backend/data/
+android/local.properties
+```
 
-The repository `.gitignore` is configured to exclude these files.
+If the vault key is lost and no valid recovery backup exists, encrypted data may be unrecoverable.
 
-Recovery files are encrypted with a password. Losing `vault.key` without a valid
-recovery file means encrypted data cannot be decrypted.
+## Applications
+
+| Target | Location | Status |
+|---|---|---|
+| Desktop/Web | `backend/` + `frontend/` | Main application |
+| Windows | `build.py` | PyInstaller packaging |
+| Android | `android/` | Native app, active development |
+
+The Android application is not a WebView wrapper. It uses Kotlin/Jetpack Compose for the UI and bundles the Python core through Chaquopy.
+
+## Technology Stack
+
+| Area | Technology |
+|---|---|
+| Frontend | React + TypeScript |
+| Backend | Python |
+| API | FastAPI |
+| ASGI server | Uvicorn |
+| Telegram | Telethon |
+| Encryption | AES-256-GCM |
+| KDF | Argon2id |
+| Desktop shell | PyWebView |
+| Windows packaging | PyInstaller |
+| Android UI | Kotlin + Jetpack Compose |
+| Android Python runtime | Chaquopy |
 
 ## Requirements
 
-Desktop development:
+### Desktop
 
 - Python 3.10+
 - Node.js 18+
-- Telegram API ID and API hash from `my.telegram.org`
+- Telegram API ID
+- Telegram API hash
 
-Android development:
+Telegram API credentials can be obtained from Telegram's official developer portal.
+
+### Android
 
 - Android Studio
 - Android SDK
-- Python 3.12 for Chaquopy build packaging
+- Python 3.12 for the Chaquopy dependency-packaging workflow
 
-End users do not need Python or Node installed when you share built apps:
+## Quick Start
 
-- Windows users can run the packaged `.exe`.
-- Android users can install the APK.
+Clone the repository:
 
-## Desktop Development
+```bash
+git clone https://github.com/Skyh-23/TeleVault.git
+cd TeleVault
+```
 
 Install Python dependencies:
 
-```powershell
+```bash
 pip install -r requirements.txt
 ```
 
 Install frontend dependencies:
 
-```powershell
+```bash
 cd frontend
 npm install
 ```
 
-Run the frontend in development:
+Run the frontend:
 
-```powershell
+```bash
 npm run dev
 ```
 
-Run the backend:
+In another terminal:
 
-```powershell
+```bash
 cd ..
 python backend/main.py --dev
 ```
 
-## Build Windows EXE
+The local backend normally listens on:
 
-```powershell
+```text
+http://127.0.0.1:8765
+```
+
+The API is intended for local use. Do not expose it directly to the public internet without implementing an appropriate security boundary.
+
+## Windows Build
+
+From the repository root:
+
+```bash
 python build.py
 ```
 
-Build output is created in `dist/`. Do not commit `dist/`.
+The packaged application is produced under:
 
-## Android
+```text
+dist/
+```
 
-The Android app is in `android/`. It is native Kotlin/Compose and uses Chaquopy
-to bundle Python modules inside the APK.
+For detailed build instructions, see [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md).
 
-Android is still under active development. The current native UI focuses on the
-main file workflow first, while more parity screens are being added.
-
-Before building from a fresh clone:
+## Android Build
 
 ```powershell
 cd android
 .\tools\vendor-python-deps.ps1
 ```
 
-Then open `android/` in Android Studio and build the app.
+Then open `android/` in Android Studio.
 
-If Android Studio does not find your SDK, copy:
+If required, create `android/local.properties` from `android/local.properties.example` and configure your local Android SDK path.
 
-```text
-android/local.properties.example
-```
+Never commit `local.properties`.
 
-to:
+## Documentation
 
-```text
-android/local.properties
-```
-
-and set your own SDK path. Never commit `local.properties`.
+- [Quick Start](QUICK_START.md)
+- [Build Instructions](BUILD_INSTRUCTIONS.md)
+- [Architecture & Technical Documentation](DOCUMENTATION.md)
+- [API Reference](API.md)
+- [Security Policy](SECURITY.md)
+- [Troubleshooting](TROUBLESHOOTING.md)
+- [GitHub/Maintainer Setup](GITHUB_SETUP.md)
+- [Crypto Engineering Notes](solution_for_speed.md)
 
 ## Project Structure
 
 ```text
 TeleVault/
-  backend/                  Python FastAPI, Telethon, crypto, vault logic
-  frontend/                 React + TypeScript app
-  android/                  Native Android app
-  android/app/src/main/python/
-                            Android Python core and command bridge
-  build.py                  Windows packaging script
-  requirements.txt          Desktop Python dependencies
-  DOCUMENTATION.md          Architecture, build, security, release notes
-  API.md                    Local backend/API endpoint reference
+├── backend/                         Python backend, API, Telegram, vault and crypto logic
+├── frontend/                        React + TypeScript application
+├── android/                         Native Android application
+├── build.py                         Windows packaging/build script
+├── requirements.txt                 Desktop Python dependencies
+├── API.md                            Local API reference
+├── BUILD_INSTRUCTIONS.md             Build documentation
+├── DOCUMENTATION.md                  Technical documentation
+├── GITHUB_SETUP.md                   Repository security/maintenance guide
+├── QUICK_START.md                    Quick setup guide
+├── SECURITY.md                       Security guidance
+├── TROUBLESHOOTING.md                Troubleshooting guide
+├── solution_for_speed.md             Crypto/performance engineering notes
+├── LICENSE                            Project license
+└── README.md                          Project overview
 ```
 
-## Credits
+## Project Status
 
-TeleVault is built and maintained by Liethueis-Foundation.
+TeleVault is under active development.
 
-## Documentation
+The desktop application is currently the primary implementation. Android is being developed toward broader feature parity.
 
-- `DOCUMENTATION.md` - architecture, security model, build flow, release notes
-- `API.md` - local backend endpoint documentation
-- `SECURITY.md` - sensitive files and safety guidance
+Features, APIs, storage formats, and internal architecture may change between development versions.
+
+Do not use an unreleased development build as the only copy of important or irreplaceable data.
+
+## Contributing
+
+Issues, suggestions, testing, and pull requests are welcome.
+
+When contributing:
+
+1. Keep changes focused.
+2. Do not commit credentials, Telegram sessions, vault keys, or private data.
+3. Test affected functionality before submitting a pull request.
+4. Update documentation when behavior or APIs change.
+5. Keep security-sensitive changes clearly documented.
 
 ## License
 
-See `LICENSE`.
+TeleVault is licensed under the MIT License. See [LICENSE](LICENSE).
+
+## Disclaimer
+
+TeleVault is an independent third-party application. Telegram and related trademarks belong to their respective owners.
+
+The software is provided without warranty. The project author is not responsible for account restrictions, service changes, lost credentials, lost encryption keys, data corruption, data loss, or other consequences resulting from use of the software.
+
+Use TeleVault responsibly and comply with the terms and applicable laws governing the services you use.
