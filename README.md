@@ -1,3 +1,10 @@
+<div align="center">
+
+<img src="Preview-image.png" width="225" alt="Project Logo">
+
+</div>
+<div align="center">
+
 # TeleVault
 
 > Private, client-side encrypted cloud storage powered by your Telegram account.
