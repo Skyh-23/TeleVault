@@ -11,7 +11,7 @@ All routes map to frontend invoke() calls:
 - Utils:   cmd_get_bandwidth, cmd_clean_cache
 - Events:  /events (SSE for progress)
 
-Author: Liethueis-Foundation © 2026
+Author: Hiren Sumra — Liethueis Foundation © 2026
 """
 
 import os
@@ -27,6 +27,7 @@ import mimetypes
 import time
 import subprocess
 import tempfile
+from contextlib import asynccontextmanager
 from typing import Optional, Dict, Any, List
 
 from fastapi import FastAPI, Request, HTTPException
@@ -48,6 +49,14 @@ from manifest import (
     list_files_from_manifests,
     compute_file_checksum, get_mime_type,
 )
+from share import (
+    build_share_link,
+    parse_share_link,
+    encrypt_share_payload,
+    decrypt_share_payload,
+    validate_share_password,
+    validate_access_key,
+)
 from transfer_progress import TransferProgress
 from televault_crypto import (
     get_block_size, split_file,
@@ -65,7 +74,64 @@ logger = logging.getLogger("televault.server")
 #  App Setup
 # ─────────────────────────────────────────────
 
-app = FastAPI(title="TeleVault", version="1.0.0")
+
+async def _cleanup_expired_share_channels() -> None:
+    """Delete share channels whose links have expired (runs in background)."""
+    records = _load_share_records()
+    now = int(time.time())
+    changed = False
+    for rid, record in records.items():
+        if not bool(record.get("active", False)):
+            continue
+        if record.get("kind") != "channel":
+            continue
+        try:
+            expiry = int(record["expiry"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if now <= expiry:
+            continue
+        channel_id = record.get("channel_id")
+        try:
+            if channel_id is not None:
+                await telegram.delete_share_channel(int(channel_id))
+            record["active"] = False
+            record["revoked_at"] = now
+            record["revoked_reason"] = "expired"
+            records[rid] = record
+            changed = True
+            logger.info(f"Share {rid} expired — deleted share channel {channel_id}")
+        except Exception as e:
+            logger.warning(f"Failed to clean up expired share {rid}: {e}")
+    if changed:
+        _save_share_records(records)
+
+
+async def _share_cleanup_loop() -> None:
+    """Background loop that prunes expired share channels periodically."""
+    while True:
+        try:
+            await _cleanup_expired_share_channels()
+        except Exception as e:
+            logger.warning(f"Share cleanup pass failed: {e}")
+        await asyncio.sleep(SHARE_CLEANUP_INTERVAL_SECONDS)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPI lifespan — owns the background share-cleanup task."""
+    cleanup_task = asyncio.create_task(_share_cleanup_loop())
+    try:
+        yield
+    finally:
+        cleanup_task.cancel()
+        try:
+            await cleanup_task
+        except asyncio.CancelledError:
+            pass
+
+
+app = FastAPI(title="TeleVault", version="1.0.0", lifespan=lifespan)
 
 # CORS — allow all origins (pure JSON API, no cookies/credentials used)
 app.add_middleware(
@@ -105,6 +171,7 @@ STREAM_CACHE_MAX_BYTES_PER_FILE = 100 * 1024 * 1024  # 100 MiB per file cache
 THUMBNAIL_CACHE_DIR = os.path.join(CACHE_DIR, "thumbnails")
 SHARES_FILE = os.path.join(DATA_DIR, "shares.json")
 SHARE_DEFAULT_EXPIRY_SECONDS = 24 * 60 * 60
+SHARE_CLEANUP_INTERVAL_SECONDS = 15 * 60
 os.makedirs(STREAM_CACHE_DIR, exist_ok=True)
 os.makedirs(THUMBNAIL_CACHE_DIR, exist_ok=True)
 
@@ -1601,7 +1668,9 @@ async def cmd_create_share(request: Request):
 
 @app.post("/cmd_revoke_share")
 async def cmd_revoke_share(request: Request):
-    """Revoke a previously generated share link."""
+    """Revoke a previously generated share link.
+    Channel shares are revoked remotely by deleting the Telegram channel.
+    """
     body = await parse_body(request)
     revoke_id = body.get("revokeId") or body.get("rid")
     if not revoke_id:
@@ -1611,6 +1680,18 @@ async def cmd_revoke_share(request: Request):
     record = records.get(str(revoke_id))
     if not record:
         raise HTTPException(404, "Share record not found")
+
+    # Channel shares: delete the Telegram channel so access is revoked
+    # for everyone holding the link — no need to wait for expiry.
+    if record.get("kind") == "channel":
+        channel_id = record.get("channel_id")
+        if channel_id is not None:
+            try:
+                await telegram.delete_share_channel(int(channel_id))
+            except Exception as e:
+                logger.warning(f"Failed to delete share channel {channel_id}: {e}")
+                raise HTTPException(500, "Could not delete the share channel")
+        record.pop("invite_hash", None)
 
     record["active"] = False
     record["revoked_at"] = int(time.time())
@@ -1680,10 +1761,12 @@ async def cmd_list_shares(request: Request):
             "fileId": file_id,
             "folderId": folder_id,
             "mode": str(record.get("mode", "easy")),
+            "kind": record.get("kind", "link"),
             "active": active,
             "expiry": expiry,
             "createdAt": int(record.get("created_at", 0) or 0),
             "revokedAt": int(record.get("revoked_at", 0) or 0) if record.get("revoked_at") is not None else None,
+            "channelId": record.get("channel_id"),
         })
 
     if changed:
@@ -1691,6 +1774,280 @@ async def cmd_list_shares(request: Request):
 
     result.sort(key=lambda item: item["createdAt"], reverse=True)
     return JSONResponse(result)
+
+
+# ─────────────────────────────────────────────
+#  Channel-Based E2E Sharing
+# ─────────────────────────────────────────────
+
+@app.post("/cmd_share_create")
+async def cmd_share_create(request: Request):
+    """
+    Create a channel-based E2E share for a file.
+
+    Flow (sharer side):
+    1. Create a dedicated private Telegram channel (one per share).
+    2. Forward the file's encrypted blocks into it (server-side, no re-upload).
+    3. Post a metadata envelope encrypted with a mandatory password.
+    4. Export an invite link and build the televault://share link.
+
+    The recipient joins with their own Telegram account and unlocks the
+    envelope with the password — only then can the blocks be decrypted.
+    """
+    body = await parse_body(request)
+    message_id = body.get("messageId")
+    folder_id = _normalize_folder_id(body.get("folderId"))
+    password = str(body.get("password", "") or "")
+    access_key = str(body.get("accessKey", "") or "")
+    expires_in_seconds = body.get("expiresInSeconds", SHARE_DEFAULT_EXPIRY_SECONDS)
+
+    try:
+        validate_share_password(password)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    if access_key:
+        try:
+            validate_access_key(access_key)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    if message_id is None:
+        raise HTTPException(400, "messageId is required")
+    try:
+        normalized_message_id = int(message_id)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "messageId must be a number")
+
+    try:
+        expires_in_seconds = int(expires_in_seconds)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "expiresInSeconds must be a number")
+    if expires_in_seconds <= 0:
+        raise HTTPException(400, "expiresInSeconds must be > 0")
+    if expires_in_seconds > 30 * 24 * 60 * 60:
+        raise HTTPException(400, "expiresInSeconds must be <= 30 days")
+
+    # Resolve the file so the share actually references existing media.
+    try:
+        vault_key = load_vault_key()
+        manifest = await get_manifest(telegram, normalized_message_id, vault_key, folder_id)
+    except Exception as e:
+        raise HTTPException(400, f"Unable to create share for this file: {e}")
+
+    if not manifest.get("block_message_ids"):
+        raise HTTPException(400, "File has no blocks to share")
+
+    # Per-file decryption key — scoped to this file, never the vault key.
+    salt = base64.b64decode(manifest["salt"])
+    master_key = derive_master_key(vault_key, salt)
+
+    # 1. Create the share channel.
+    channel = await telegram.create_share_channel(secrets.token_hex(4))
+
+    try:
+        # 2. Forward encrypted blocks into the channel.
+        new_block_ids = await telegram.forward_blocks_to_channel(
+            source_folder_id=folder_id,
+            block_ids=manifest["block_message_ids"],
+            channel=channel,
+        )
+        if not new_block_ids:
+            raise RuntimeError("Forwarding produced no blocks")
+
+        # 3. Build + encrypt the envelope with the mandatory password.
+        payload = {
+            "kind": "file",
+            "name": manifest["filename"],
+            "size": manifest["size"],
+            "mime": manifest.get("mime", ""),
+            "salt": manifest["salt"],
+            "master_key": master_key.hex(),
+            "block_size": manifest["block_size"],
+            "blocks": new_block_ids,
+            "checksum": manifest.get("checksum", ""),
+            "created_at": int(time.time()),
+        }
+        envelope = encrypt_share_payload(payload, password, access_key=access_key)
+
+        # 4. Post the envelope into the channel.
+        metadata_message_id = await telegram.post_share_metadata(channel, envelope)
+
+        # 5. Export an invite link so recipients can join.
+        invite_hash = await telegram.export_channel_invite(channel)
+    except Exception:
+        # Roll back the channel if anything above failed.
+        try:
+            await telegram.delete_share_channel(channel)
+        except Exception:
+            pass
+        raise
+
+    now = int(time.time())
+    expiry = now + expires_in_seconds
+    revoke_id = uuid.uuid4().hex
+
+    records = _load_share_records()
+    records[revoke_id] = {
+        "kind": "channel",
+        "file_id": normalized_message_id,
+        "folder_id": folder_id,
+        "revoke_id": revoke_id,
+        "active": True,
+        "expiry": expiry,
+        "created_at": now,
+        "mode": "strong" if access_key else "password",
+        "access_key_required": bool(access_key),
+        "channel_id": channel.id,
+        "invite_hash": invite_hash,
+        "metadata_message_id": metadata_message_id,
+    }
+    _save_share_records(records)
+
+    link = build_share_link(
+        rid=revoke_id,
+        expiry=expiry,
+        invite_hash=invite_hash,
+        metadata_message_id=metadata_message_id,
+        requires_access_key=bool(access_key),
+    )
+
+    return JSONResponse({
+        "ok": True,
+        "mode": "strong" if access_key else "password",
+        "revokeId": revoke_id,
+        "expiry": expiry,
+        "link": link,
+        "channelId": channel.id,
+        "accessKey": access_key or None,
+        "accessKeyRequired": bool(access_key),
+    })
+
+
+@app.post("/cmd_share_join")
+async def cmd_share_join(request: Request):
+    """
+    Recipient-side: validate a share link, join the share channel with the
+    local Telegram account, unlock the envelope with the password, and
+    return the shared file's metadata + decryption material.
+    """
+    body = await parse_body(request)
+    link = str(body.get("link", "")).strip()
+    password = str(body.get("password", "") or "")
+    access_key = str(body.get("accessKey", "") or "")
+
+    if not link:
+        raise HTTPException(400, "link is required")
+    if not password:
+        raise HTTPException(400, "Password is required")
+
+    try:
+        parsed = parse_share_link(link)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    if parsed.get("requires_access_key") and not access_key:
+        raise HTTPException(403, "This share requires the SKYH256 access key")
+
+    if int(parsed["exp"]) < int(time.time()):
+        raise HTTPException(403, "Share link expired")
+
+    # Join the share channel with the local Telegram session.
+    try:
+        channel = await telegram.join_channel_by_invite(parsed["inv"])
+    except Exception as e:
+        raise HTTPException(403, f"Could not join the shared channel: {e}")
+
+    # Fetch + unlock the envelope.
+    try:
+        envelope = await telegram.download_share_metadata(channel, parsed["mid"])
+        payload = decrypt_share_payload(envelope, password, access_key=access_key)
+    except ValueError as e:
+        raise HTTPException(403, str(e))
+    except Exception as e:
+        raise HTTPException(403, f"Could not read share metadata: {e}")
+
+    return JSONResponse({
+        "ok": True,
+        "rid": parsed["rid"],
+        "expiresAt": parsed["exp"],
+        "channelId": channel.id,
+        "accessKeyRequired": parsed.get("requires_access_key", False),
+        "file": {
+            "kind": payload.get("kind", "file"),
+            "name": payload["name"],
+            "size": payload["size"],
+            "mime": payload.get("mime", ""),
+            "blockSize": payload["block_size"],
+            "blocks": payload["blocks"],
+            "salt": payload["salt"],
+            "masterKey": payload["master_key"],
+            "checksum": payload.get("checksum", ""),
+            "createdAt": payload.get("created_at"),
+        },
+    })
+
+
+@app.post("/cmd_share_download_block")
+async def cmd_share_download_block(request: Request):
+    """
+    Recipient-side: download + decrypt one block of a shared file.
+    Re-validates the link, re-joins if needed, and returns plaintext.
+    """
+    body = await parse_body(request)
+    link = str(body.get("link", "")).strip()
+    password = str(body.get("password", "") or "")
+    access_key = str(body.get("accessKey", "") or "")
+    block_index = body.get("blockIndex")
+
+    if not link:
+        raise HTTPException(400, "link is required")
+    if not password:
+        raise HTTPException(400, "Password is required")
+
+    try:
+        parsed = parse_share_link(link)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if parsed.get("requires_access_key") and not access_key:
+        raise HTTPException(403, "This share requires the SKYH256 access key")
+    if int(parsed["exp"]) < int(time.time()):
+        raise HTTPException(403, "Share link expired")
+
+    try:
+        block_index = int(block_index)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "blockIndex must be a number")
+
+    try:
+        channel = await telegram.join_channel_by_invite(parsed["inv"])
+        envelope = await telegram.download_share_metadata(channel, parsed["mid"])
+        payload = decrypt_share_payload(envelope, password, access_key=access_key)
+    except ValueError as e:
+        raise HTTPException(403, str(e))
+    except Exception as e:
+        raise HTTPException(403, f"Could not access shared media: {e}")
+
+    blocks = payload.get("blocks") or []
+    if block_index < 0 or block_index >= len(blocks):
+        raise HTTPException(400, "blockIndex out of range")
+
+    try:
+        encrypted = await telegram.download_block(blocks[block_index], channel.id)
+    except Exception as e:
+        raise HTTPException(500, f"Failed to download block: {e}")
+
+    salt = base64.b64decode(payload["salt"])
+    master_key = bytes.fromhex(payload["master_key"])
+    crypto = AESGCMCrypto(master_key, salt)
+    try:
+        plaintext = crypto.decrypt_block(encrypted, block_index)
+    except ValueError as e:
+        raise HTTPException(403, f"Decryption failed: {e}")
+    finally:
+        crypto.close()
+
+    return Response(content=plaintext, media_type="application/octet-stream")
 
 
 @app.post("/cmd_clean_cache")
