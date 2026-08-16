@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Ban, Clock3, Copy, Link2, Shield } from "lucide-react";
+import { Ban, Clock3, Copy, KeyRound, Link2, RefreshCw, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { TelegramFile } from "../types";
-import { api, ShareCreateResponse } from "../lib/api";
+import { api, ChannelShareCreateResponse, ShareCreateResponse } from "../lib/api";
 import { Modal, GlassButton } from "./primitives";
 
 interface ShareModalProps {
@@ -35,13 +35,30 @@ async function copyText(value: string) {
   }
 }
 
+type ShareMode = "easy" | "secure" | "channel" | "strong";
+
+const ACCESS_KEY_PREFIX = "SKYH256:";
+const ACCESS_KEY_CHARS =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789$%&*()!+-_=?@#";
+
+function generateAccessKey(): string {
+  let random = "";
+  for (let i = 0; i < 20; i++) {
+    random += ACCESS_KEY_CHARS[Math.floor(Math.random() * ACCESS_KEY_CHARS.length)];
+  }
+  return `${ACCESS_KEY_PREFIX}${random}`;
+}
+
 export function ShareModal({ file, activeFolderId, onClose }: ShareModalProps) {
-  const [mode, setMode] = useState<"easy" | "secure">("secure");
+  // Default to the E2E channel share — the recommended flow for recipients.
+  const [mode, setMode] = useState<ShareMode>("channel");
   const [expiryHours, setExpiryHours] = useState("24");
   const [customKey, setCustomKey] = useState("");
+  const [sharePassword, setSharePassword] = useState("");
+  const [accessKey, setAccessKey] = useState(generateAccessKey);
   const [isCreating, setIsCreating] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
-  const [createdShare, setCreatedShare] = useState<ShareCreateResponse | null>(null);
+  const [createdShare, setCreatedShare] = useState<ShareCreateResponse | ChannelShareCreateResponse | null>(null);
 
   const { data: shares = [], isLoading, refetch } = useQuery({
     queryKey: ["shares", file.id],
@@ -56,18 +73,36 @@ export function ShareModal({ file, activeFolderId, onClose }: ShareModalProps) {
       toast.error("Expiry must be greater than 0 hours");
       return;
     }
+    if ((mode === "channel" || mode === "strong") && sharePassword.trim().length < 12) {
+      toast.error("Channel shares require a password of at least 12 characters");
+      return;
+    }
     setIsCreating(true);
     try {
-      const response = await api.createShare({
-        messageId: file.id,
-        folderId: activeFolderId,
-        mode,
-        expiresInSeconds: Math.floor(hours * 3600),
-        key: customKey.trim() || undefined,
-      });
-      setCreatedShare(response);
-      await refetch();
-      toast.success("Share link generated");
+      if (mode === "channel" || mode === "strong") {
+        const response = await api.shareChannelCreate({
+          messageId: file.id,
+          folderId: activeFolderId,
+          password: sharePassword.trim(),
+          accessKey: mode === "strong" ? accessKey : undefined,
+          expiresInSeconds: Math.floor(hours * 3600),
+        });
+        setCreatedShare(response);
+        toast.success(
+          mode === "strong" ? "Strong E2E share created (link + access key + password)" : "Encrypted channel share created"
+        );
+      } else {
+        const response = await api.createShare({
+          messageId: file.id,
+          folderId: activeFolderId,
+          mode,
+          expiresInSeconds: Math.floor(hours * 3600),
+          key: customKey.trim() || undefined,
+        });
+        setCreatedShare(response);
+        await refetch();
+        toast.success("Share link generated");
+      }
     } catch (error) {
       toast.error(`Failed to create share: ${error}`);
     } finally {
@@ -91,22 +126,38 @@ export function ShareModal({ file, activeFolderId, onClose }: ShareModalProps) {
   return (
     <Modal title="Share a link" subtitle={file.name} onClose={onClose} maxWidth="max-w-2xl" icon={Link2}>
       {/* Mode picker */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
         <ModeCard
           active={mode === "secure"}
           onClick={() => setMode("secure")}
           icon={<Shield className="w-5 h-5" />}
-          title="Secure share"
-          desc="Link and key travel separately — recommended"
+          title="Secure link"
+          desc="Link and key travel separately"
           tone="violet"
         />
         <ModeCard
           active={mode === "easy"}
           onClick={() => setMode("easy")}
           icon={<Link2 className="w-5 h-5" />}
-          title="Easy share"
+          title="Easy link"
           desc="Single link that includes the key"
           tone="sky"
+        />
+        <ModeCard
+          active={mode === "channel"}
+          onClick={() => setMode("channel")}
+          icon={<KeyRound className="w-5 h-5" />}
+          title="Channel share"
+          desc="E2E encrypted channel with password"
+          tone="mint"
+        />
+        <ModeCard
+          active={mode === "strong"}
+          onClick={() => setMode("strong")}
+          icon={<Shield className="w-5 h-5" />}
+          title="Strong share"
+          desc="Link + SKYH256 access key + password"
+          tone="rose"
         />
       </div>
 
@@ -122,17 +173,61 @@ export function ShareModal({ file, activeFolderId, onClose }: ShareModalProps) {
             className="w-full rounded-2xl glass-panel px-4 py-2.5 text-sm text-aurora-ink focus:outline-none focus:ring-2 focus:ring-aurora-lavender/60"
           />
         </label>
-        <label className="block">
-          <span className="block text-[11px] font-bold uppercase tracking-wider text-aurora-muted mb-1.5">Custom key (optional)</span>
-          <input
-            type="text"
-            value={customKey}
-            onChange={(e) => setCustomKey(e.target.value)}
-            placeholder="Auto-generated if empty"
-            className="w-full rounded-2xl glass-panel px-4 py-2.5 text-sm text-aurora-ink placeholder:text-aurora-faint focus:outline-none focus:ring-2 focus:ring-aurora-lavender/60"
-          />
-        </label>
+        {mode === "channel" || mode === "strong" ? (
+          <label className="block">
+            <span className="block text-[11px] font-bold uppercase tracking-wider text-aurora-muted mb-1.5">Share password (required)</span>
+            <input
+              type="password"
+              value={sharePassword}
+              onChange={(e) => setSharePassword(e.target.value)}
+              placeholder="At least 12 characters"
+              className="w-full rounded-2xl glass-panel px-4 py-2.5 text-sm text-aurora-ink placeholder:text-aurora-faint focus:outline-none focus:ring-2 focus:ring-aurora-lavender/60"
+            />
+          </label>
+        ) : (
+          <label className="block">
+            <span className="block text-[11px] font-bold uppercase tracking-wider text-aurora-muted mb-1.5">Custom key (optional)</span>
+            <input
+              type="text"
+              value={customKey}
+              onChange={(e) => setCustomKey(e.target.value)}
+              placeholder="Auto-generated if empty"
+              className="w-full rounded-2xl glass-panel px-4 py-2.5 text-sm text-aurora-ink placeholder:text-aurora-faint focus:outline-none focus:ring-2 focus:ring-aurora-lavender/60"
+            />
+          </label>
+        )}
       </div>
+
+      {mode === "channel" && (
+        <p className="mb-4 text-[11px] leading-relaxed text-aurora-muted -mt-2">
+          Creates a private Telegram channel, forwards this file's encrypted blocks into it, and
+          locks everything with your password. The recipient joins with their own TeleVault account
+          and enters the password to unlock — the file stays AES-256-GCM encrypted end-to-end.
+        </p>
+      )}
+
+      {mode === "strong" && (
+        <div className="mb-4 space-y-3 -mt-2">
+          <p className="text-[11px] leading-relaxed text-aurora-muted">
+            Strongest option: the recipient needs the link, the SKYH256 access key, AND the
+            password. The access key is a random second factor — regenerate it as many times as
+            you like before creating the share.
+          </p>
+          <label className="block">
+            <span className="block text-[11px] font-bold uppercase tracking-wider text-aurora-muted mb-1.5">Access key (SKYH256:…)</span>
+            <div className="flex items-center gap-2">
+              <input
+                readOnly
+                value={accessKey}
+                className="flex-1 min-w-0 rounded-xl bg-white/70 dark:bg-white/5 border border-aurora-line/60 px-3 py-2 text-xs text-aurora-ink font-mono"
+              />
+              <GlassButton variant="soft" className="p-2! px-3! py-1.5! text-xs!" onClick={() => setAccessKey(generateAccessKey())}>
+                <RefreshCw className="w-3.5 h-3.5" /> Regenerate
+              </GlassButton>
+            </div>
+          </label>
+        </div>
+      )}
 
       <div className="flex justify-end mb-5">
         <GlassButton onClick={handleCreateShare} disabled={isCreating}>
@@ -149,8 +244,19 @@ export function ShareModal({ file, activeFolderId, onClose }: ShareModalProps) {
             </span>
           </div>
           <CopyField label="Link" value={createdShare.link} />
-          {createdShare.key && <CopyField label="Key (share separately)" value={createdShare.key} />}
-          <p className="text-[11px] text-aurora-faint">Revoke ID: <span className="font-mono text-aurora-ink-soft">{createdShare.revokeId}</span></p>
+          {"key" in createdShare && createdShare.key && <CopyField label="Key (share separately)" value={createdShare.key} />}
+          {"mode" in createdShare && createdShare.mode === "strong" && createdShare.accessKey && (
+            <CopyField label="Access key (share separately)" value={createdShare.accessKey} />
+          )}
+          <p className="text-[11px] text-aurora-faint">
+            Revoke ID: <span className="font-mono text-aurora-ink-soft">{createdShare.revokeId}</span>
+            {"mode" in createdShare && createdShare.mode === "password" && (
+              <span className="ml-2 text-emerald-600">E2E channel share</span>
+            )}
+            {"mode" in createdShare && createdShare.mode === "strong" && (
+              <span className="ml-2 text-rose-600">Strong share · access key + password</span>
+            )}
+          </p>
         </div>
       )}
 
@@ -171,7 +277,7 @@ export function ShareModal({ file, activeFolderId, onClose }: ShareModalProps) {
               <div className="min-w-0">
                 <div className="text-xs font-mono text-aurora-ink truncate">{share.revokeId}</div>
                 <div className="text-[11px] text-aurora-muted mt-0.5">
-                  {share.mode === "secure" ? "Secure" : "Easy"} · expires {formatTimestamp(share.expiry)}
+                  {share.kind === "channel" ? "E2E channel" : share.mode === "secure" ? "Secure" : "Easy"} · expires {formatTimestamp(share.expiry)}
                 </div>
               </div>
               <button
@@ -190,19 +296,25 @@ export function ShareModal({ file, activeFolderId, onClose }: ShareModalProps) {
   );
 }
 
-function ModeCard({ active, onClick, icon, title, desc, tone }: { active: boolean; onClick: () => void; icon: React.ReactNode; title: string; desc: string; tone: "violet" | "sky" }) {
+function ModeCard({ active, onClick, icon, title, desc, tone }: { active: boolean; onClick: () => void; icon: React.ReactNode; title: string; desc: string; tone: "violet" | "sky" | "mint" | "rose" }) {
+  const activeStyles = {
+    violet: "border-aurora-lavender/60 bg-aurora-lavender/10 shadow-lavender",
+    sky: "border-aurora-sky/60 bg-aurora-sky/10 shadow-sky",
+    mint: "border-emerald-300/60 bg-emerald-400/10 shadow-[0_0_20px_-5px_rgba(52,211,153,0.5)]",
+    rose: "border-rose-300/60 bg-rose-400/10 shadow-[0_0_20px_-5px_rgba(251,113,133,0.5)]",
+  }[tone];
+  const iconStyles = {
+    violet: "bg-aurora-violet/15 text-aurora-violet",
+    sky: "bg-aurora-sky/15 text-sky-600",
+    mint: "bg-emerald-400/15 text-emerald-600",
+    rose: "bg-rose-400/15 text-rose-600",
+  }[tone];
   return (
     <button
       onClick={onClick}
-      className={`text-left rounded-3xl border p-4 transition-all ${
-        active
-          ? tone === "violet"
-            ? "border-aurora-lavender/60 bg-aurora-lavender/10 shadow-lavender"
-            : "border-aurora-sky/60 bg-aurora-sky/10 shadow-sky"
-          : "glass-chip hover:border-aurora-line-strong"
-      }`}
+      className={`text-left rounded-3xl border p-4 transition-all ${active ? activeStyles : "glass-chip hover:border-aurora-line-strong"}`}
     >
-      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center mb-2.5 ${tone === "violet" ? "bg-aurora-violet/15 text-aurora-violet" : "bg-aurora-sky/15 text-sky-600"}`}>
+      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center mb-2.5 ${iconStyles}`}>
         {icon}
       </div>
       <p className="text-sm font-bold text-aurora-ink">{title}</p>
