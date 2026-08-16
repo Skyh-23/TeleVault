@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { motion } from "framer-motion";
-import { BarChart3, CloudSun, Info, LogOut, RefreshCw, Shield } from "lucide-react";
+import { BarChart3, CloudSun, Info, Link2, LogOut, RefreshCw, Shield } from "lucide-react";
 import { BandwidthStats } from "../types";
 import { formatBytes } from "../utils";
 import { StatusDot } from "./primitives";
@@ -13,6 +13,7 @@ interface NavSidebarProps {
   onOpenInsights: () => void;
   onOpenBackup: () => void;
   onOpenAbout: () => void;
+  onOpenLink: () => void;
   onReconnect: () => void;
   onLogout: () => void;
 }
@@ -25,6 +26,7 @@ export function NavSidebar({
   onOpenInsights,
   onOpenBackup,
   onOpenAbout,
+  onOpenLink,
   onReconnect,
   onLogout,
 }: NavSidebarProps) {
@@ -71,6 +73,7 @@ export function NavSidebar({
         <p className="px-3 pb-2 pt-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-aurora-faint">Menu</p>
         <NavButton icon={<CloudSun className="h-4 w-4" />} label="Library" hint="Your files" active={true} onClick={onSelectLibrary} />
         <NavButton icon={<BarChart3 className="h-4 w-4" />} label="Insights" hint="Storage analytics" active={false} onClick={onOpenInsights} />
+        <NavButton icon={<Link2 className="h-4 w-4" />} label="Open link" hint="Receive a shared file" active={false} onClick={onOpenLink} />
         <NavButton icon={<Shield className="h-4 w-4" />} label="Backup vault" hint="Export recovery file" active={false} onClick={onOpenBackup} />
         <NavButton icon={<Info className="h-4 w-4" />} label="About" hint="Version and help" active={false} onClick={onOpenAbout} />
 
