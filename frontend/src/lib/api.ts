@@ -287,6 +287,75 @@ export interface ShareRecord {
   expiry: number;
   createdAt: number;
   revokedAt?: number | null;
+  kind?: 'link' | 'channel';
+  channelId?: number | null;
+}
+
+export interface ChannelShareCreateOptions {
+  messageId: number;
+  folderId?: number | null;
+  password: string;
+  accessKey?: string;
+  expiresInSeconds?: number;
+}
+
+export interface ChannelShareCreateResponse {
+  ok: boolean;
+  mode: 'password' | 'strong';
+  revokeId: string;
+  expiry: number;
+  link: string;
+  channelId: number;
+  accessKey?: string | null;
+  accessKeyRequired?: boolean;
+}
+
+export interface ChannelShareFile {
+  kind: string;
+  name: string;
+  size: number;
+  mime: string;
+  blockSize: number;
+  blocks: number[];
+  salt: string;
+  masterKey: string;
+  checksum: string;
+  createdAt?: number;
+}
+
+export interface ChannelShareJoinResponse {
+  ok: boolean;
+  rid: string;
+  expiresAt: number;
+  channelId: number;
+  accessKeyRequired?: boolean;
+  file: ChannelShareFile;
+}
+
+// Raw-bytes POST helper — used for endpoints that return binary (e.g.
+// channel share block download). Only available outside the Android bridge.
+async function invokeRawBytes(
+  cmd: string,
+  args: Record<string, unknown>,
+  timeout: number = LONG_TIMEOUT
+): Promise<ArrayBuffer> {
+  if (isAndroidNative()) {
+    throw new APIError('Raw block download is not supported on this device');
+  }
+  const response = await fetchWithTimeout(
+    `${API_BASE}/${cmd}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(args),
+    },
+    timeout
+  );
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new APIError(`HTTP ${response.status}: ${errorText}`, response.status, errorText);
+  }
+  return response.arrayBuffer();
 }
 
 export const api = {
@@ -385,4 +454,14 @@ export const api = {
 
   listShares: (fileId?: number, includeInactive: boolean = true) =>
     invoke<ShareRecord[]>('cmd_list_shares', { fileId, includeInactive }),
+
+  // ── Channel-based E2E sharing ───────────────────────────────────
+  shareChannelCreate: (options: ChannelShareCreateOptions) =>
+    invoke<ChannelShareCreateResponse>('cmd_share_create', options as unknown as Record<string, unknown>),
+
+  shareJoin: (link: string, password: string, accessKey?: string) =>
+    invoke<ChannelShareJoinResponse>('cmd_share_join', { link, password, accessKey: accessKey || undefined }),
+
+  shareDownloadBlock: (link: string, password: string, blockIndex: number, accessKey?: string) =>
+    invokeRawBytes('cmd_share_download_block', { link, password, accessKey: accessKey || undefined, blockIndex }),
 };
