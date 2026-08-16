@@ -10,7 +10,7 @@ Wraps Telethon to handle all Telegram operations:
 Each "folder" is a private Telegram channel with the prefix "TeleVault-".
 Saved Messages (folder_id=None) is used as the default storage.
 
-Author: Liethueis-Foundation © 2026
+Author: Hiren Sumra — Liethueis Foundation © 2026
 """
 
 import os
@@ -30,9 +30,14 @@ from telethon.tl.functions.channels import (
 from telethon.tl.functions.messages import (
     SearchGlobalRequest,
     GetDialogsRequest,
+    CheckChatInviteRequest,
+    ExportChatInviteRequest,
+    ImportChatInviteRequest,
 )
 from telethon.tl.types import (
     Channel,
+    ChatInvite,
+    ChatInviteAlready,
     InputPeerChannel,
     InputPeerSelf,
     DocumentAttributeFilename,
@@ -42,6 +47,8 @@ from telethon.tl.types import (
 )
 from telethon.tl.functions.messages import ForwardMessagesRequest
 
+from share import extract_invite_hash, SHARE_FORWARD_CHUNK
+
 from config import (
     SESSION_FILE,
     DATA_DIR,
@@ -49,6 +56,9 @@ from config import (
 )
 
 logger = logging.getLogger("televault.telegram")
+
+# Prefix used for one-channel-per-share channels created by the sharer.
+SHARE_CHANNEL_PREFIX = "TeleVault-Share-"
 
 
 def _with_flood_retry(max_retries: int = 5):
@@ -379,6 +389,168 @@ class TeleVaultTelegram:
         await self.client(DeleteChannelRequest(channel=entity))
         self._folder_cache.pop(folder_id, None)
         logger.info(f"Deleted folder: {folder_id}")
+
+    # ─────────────────────────────────────────
+    #  Share Channels (E2E sharing)
+    # ─────────────────────────────────────────
+
+    async def create_share_channel(self, tag: str) -> Channel:
+        """
+        Create a dedicated private channel for one E2E share.
+        Each share gets its own randomly-named channel so link holders
+        can never see other people's shares.
+        """
+        self._ensure_connected()
+        result = await self.client(CreateChannelRequest(
+            title=f"{SHARE_CHANNEL_PREFIX}{tag}",
+            about=(
+                "TeleVault encrypted share. Do not join unless you were "
+                "sent the matching link by the owner."
+            ),
+            megagroup=False,
+        ))
+
+        channel = None
+        for chat in result.chats:
+            if isinstance(chat, Channel):
+                channel = chat
+                break
+        if not channel:
+            raise RuntimeError("Failed to create share channel")
+
+        self._folder_cache[channel.id] = channel
+        logger.info(f"Created share channel {channel.id}")
+        return channel
+
+    async def forward_blocks_to_channel(
+        self,
+        source_folder_id: Optional[int],
+        block_ids: List[int],
+        channel: Channel,
+    ) -> List[int]:
+        """
+        Forward encrypted block messages into a share channel.
+        Telegram copies the file server-side — no re-upload of bytes.
+        Returns the new message IDs as seen inside the share channel.
+        """
+        self._ensure_connected()
+        if source_folder_id is None:
+            source_peer = "me"
+        else:
+            source_peer = await self._get_entity(source_folder_id)
+
+        new_ids: List[int] = []
+        for start in range(0, len(block_ids), SHARE_FORWARD_CHUNK):
+            chunk = block_ids[start : start + SHARE_FORWARD_CHUNK]
+            forwarded = await self.client.forward_messages(channel, chunk, source_peer)
+            if forwarded is None:
+                continue
+            if not isinstance(forwarded, list):
+                forwarded = [forwarded]
+            new_ids.extend([m.id for m in forwarded])
+
+        logger.info(f"Forwarded {len(new_ids)} blocks into share channel {channel.id}")
+        return new_ids
+
+    async def export_channel_invite(self, channel: Channel) -> str:
+        """Export a chat invite for the share channel; returns the invite hash."""
+        self._ensure_connected()
+        result = await self.client(ExportChatInviteRequest(peer=channel))
+        link = getattr(result, "link", "") or ""
+        return extract_invite_hash(link)
+
+    async def join_channel_by_invite(self, invite_hash: str) -> Channel:
+        """
+        Join a share channel using its invite hash (recipient side).
+        Joining with the local Telegram account is idempotent — already
+        being a member returns the channel directly.
+
+        Telethon's CheckChatInviteRequest returns two different objects:
+        - ChatInviteAlready: the local account is already a member (has .chat)
+        - ChatInvite: the local account is NOT a member yet (no .chat) —
+          the invite must be imported to actually join.
+        """
+        self._ensure_connected()
+        hash_token = extract_invite_hash(invite_hash)
+        if not hash_token:
+            raise ValueError("Invalid invite link")
+
+        check = await self.client(CheckChatInviteRequest(hash=hash_token))
+
+        # Already a member — the invite resolves straight to the chat.
+        if isinstance(check, ChatInviteAlready):
+            chat = check.chat
+            if not isinstance(chat, Channel):
+                raise ValueError("Could not resolve the shared channel")
+            self._folder_cache[chat.id] = chat
+            logger.info(f"Already a member of share channel {chat.id}")
+            return chat
+
+        if not isinstance(check, ChatInvite):
+            raise ValueError("Invalid invite link")
+
+        # Fresh recipient — import the invite to actually join.
+        try:
+            result = await self.client(ImportChatInviteRequest(hash=hash_token))
+        except errors.InviteHashExpiredError:
+            raise ValueError("Invite link has expired")
+        except errors.InviteHashInvalidError:
+            raise ValueError("Invalid invite link")
+        except errors.UserAlreadyParticipantError:
+            # Joined between the check and the import — resolve the chat now.
+            recheck = await self.client(CheckChatInviteRequest(hash=hash_token))
+            if isinstance(recheck, ChatInviteAlready) and isinstance(recheck.chat, Channel):
+                self._folder_cache[recheck.chat.id] = recheck.chat
+                logger.info(f"Already a member of share channel {recheck.chat.id}")
+                return recheck.chat
+            raise ValueError("Could not resolve the shared channel")
+
+        # ImportChatInviteRequest returns an updates object carrying chats.
+        updates = getattr(result, "updates", None) or result
+        channel = None
+        for c in getattr(updates, "chats", []) or []:
+            if isinstance(c, Channel):
+                channel = c
+                break
+        if channel is None:
+            raise ValueError("Could not resolve the shared channel")
+
+        self._folder_cache[channel.id] = channel
+        logger.info(f"Joined share channel {channel.id}")
+        return channel
+
+    async def post_share_metadata(self, channel: Channel, data: bytes) -> int:
+        """Upload the encrypted share envelope into the channel."""
+        self._ensure_connected()
+        message = await self.client.send_file(
+            channel,
+            file=data,
+            file_name="tvshare.bin",
+            force_document=True,
+            caption="",
+        )
+        return message.id
+
+    async def download_share_metadata(self, channel: Channel, message_id: int) -> bytes:
+        """Download the encrypted share envelope from the channel."""
+        self._ensure_connected()
+        message = await self.client.get_messages(channel, ids=message_id)
+        if not message or not message.media:
+            raise ValueError(f"Share metadata message {message_id} not found")
+        return await self.client.download_media(message, file=bytes)
+
+    async def delete_share_channel(self, channel) -> None:
+        """Delete a share channel by entity or channel id."""
+        self._ensure_connected()
+        if isinstance(channel, Channel):
+            entity = channel
+            channel_id = channel.id
+        else:
+            channel_id = int(channel)
+            entity = await self._get_entity(channel_id)
+        await self.client(DeleteChannelRequest(channel=entity))
+        self._folder_cache.pop(channel_id, None)
+        logger.info(f"Deleted share channel {channel_id}")
 
     async def _get_entity(self, folder_id: int):
         """Get a Telegram entity by folder ID, using cache."""
