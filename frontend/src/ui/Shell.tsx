@@ -27,6 +27,7 @@ import { Library } from "./Library";
 import { TransferDock } from "./TransferDock";
 import { InsightsModal } from "./InsightsModal";
 import { ShareModal } from "./ShareModal";
+import { OpenLinkModal } from "./OpenLinkModal";
 import { VaultBackupModal } from "./VaultBackupModal";
 import { AboutModal } from "./AboutModal";
 import { Viewer } from "./Viewer";
@@ -49,6 +50,7 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
+  const [openLinkOpen, setOpenLinkOpen] = useState(false);
   const [shareFile, setShareFile] = useState<TelegramFile | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<TelegramFile[]>([]);
@@ -235,6 +237,7 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
   const handleEscape = useCallback(() => {
     setSelectedIds([]); setSearchTerm(""); setViewerFile(null);
     setMoveOpen(false); setInsightsOpen(false); setAboutOpen(false); setBackupOpen(false); setShareFile(null);
+    setOpenLinkOpen(false);
   }, []);
   const handleFocusSearch = useCallback(() => {
     document.querySelector<HTMLInputElement>('input[placeholder*="Search"]')?.focus();
@@ -252,7 +255,7 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
   useKeyboardShortcuts({
     onSelectAll: handleSelectAll, onDelete: handleKeyboardDelete, onEscape: handleEscape,
     onSearch: handleFocusSearch, onEnter: handleEnter,
-    enabled: !viewerFile && !moveOpen && !insightsOpen && !aboutOpen && !backupOpen && !shareFile,
+    enabled: !viewerFile && !moveOpen && !insightsOpen && !aboutOpen && !backupOpen && !shareFile && !openLinkOpen,
   });
 
   // ── Drag & drop between folders ────────────────────────────────────
@@ -301,6 +304,7 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
         onOpenInsights={() => setInsightsOpen(true)}
         onOpenBackup={() => setBackupOpen(true)}
         onOpenAbout={() => setAboutOpen(true)}
+        onOpenLink={() => setOpenLinkOpen(true)}
         onReconnect={handleReconnect}
         onLogout={handleLogout}
       />
@@ -446,6 +450,7 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
         )}
         {backupOpen && <VaultBackupModal onClose={() => setBackupOpen(false)} />}
         {aboutOpen && <AboutModal onClose={() => setAboutOpen(false)} />}
+        {openLinkOpen && <OpenLinkModal onClose={() => setOpenLinkOpen(false)} />}
         {shareFile && <ShareModal file={shareFile} activeFolderId={activeFolderId} onClose={() => setShareFile(null)} />}
         {viewerFile && (
           <Viewer
