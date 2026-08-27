@@ -8,7 +8,7 @@ Manages the local vault.key — the device-bound secret that encrypts all user d
 - Combined with optional per-file password via Argon2id → master key
 - Lost vault.key = lost data forever (unless exported backup exists)
 
-Author: Liethueis-Foundation © 2026
+Author: Hiren Sumra — Liethueis Foundation © 2026
 """
 
 import os
@@ -235,11 +235,28 @@ def import_vault_key(backup_data: bytes, export_password: str) -> bool:
         raise ValueError("Backup file is too short / corrupted")
 
     magic = backup_data[:len(_EXPORT_MAGIC_V2)]
+    # V1 legacy support for migration from old 7/31 .exe
     if magic == _EXPORT_MAGIC:
-        raise ValueError(
-            "This recovery file was created by an older unsafe backup format. "
-            "Create a new recovery file with the latest TeleVault build."
-        )
+        salt = backup_data[len(_EXPORT_MAGIC):len(_EXPORT_MAGIC) + 32]
+        nonce = backup_data[len(_EXPORT_MAGIC) + 32:len(_EXPORT_MAGIC) + 44]
+        encrypted = backup_data[len(_EXPORT_MAGIC) + 44:-32]
+        mac = backup_data[-32:]
+        enc_key = _derive_key_argon2id(export_password, salt)
+        expected_mac = hmac.new(enc_key, backup_data[:-32], hashlib.sha256).digest()
+        if not hmac.compare_digest(mac, expected_mac):
+            raise ValueError("Wrong password or corrupted backup (V1 legacy file)")
+        aesgcm = AESGCM(enc_key)
+        try:
+            vault_key = aesgcm.decrypt(nonce, encrypted, None)
+        except Exception as exc:
+            raise ValueError(f"Wrong password or corrupted backup (V1 decrypt failed): {exc}") from exc
+        if len(vault_key) != VAULT_KEY_SIZE:
+            raise ValueError("Decrypted vault key has invalid size")
+        os.makedirs(os.path.dirname(VAULT_KEY_FILE), exist_ok=True)
+        with open(VAULT_KEY_FILE, 'wb') as f:
+            f.write(vault_key)
+        return True
+
     if magic != _EXPORT_MAGIC_V2:
         raise ValueError("Invalid backup file format")
 
@@ -248,7 +265,7 @@ def import_vault_key(backup_data: bytes, export_password: str) -> bool:
     encrypted = backup_data[len(_EXPORT_MAGIC_V2) + 44:-32]
     mac = backup_data[-32:]
 
-    # Derive key and verify MAC
+    # Derive key and verify MAC (V2 secure)
     enc_key = _derive_backup_key_argon2id(export_password, salt)
     expected_mac = hmac.new(enc_key, backup_data[:-32], hashlib.sha256).digest()
 

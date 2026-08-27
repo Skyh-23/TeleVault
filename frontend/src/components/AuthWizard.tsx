@@ -2,36 +2,50 @@ import { useEffect, useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight, ExternalLink, HelpCircle, KeyRound, Lock, Phone, ServerCog, ShieldCheck, X, Sparkles } from "lucide-react";
+import { ArrowRight, ExternalLink, HelpCircle, KeyRound, Lock, Moon, Phone, ServerCog, ShieldCheck, Sun, X } from "lucide-react";
 import { load } from "@tauri-apps/plugin-store";
 import { open } from "@tauri-apps/plugin-shell";
-import { ThemeToggle } from "./ThemeToggle";
+import { useTheme } from "../context/ThemeContext";
 import { AboutTeleVaultModal } from "./AboutTeleVaultModal";
 
 type Step = "setup" | "phone" | "code" | "password";
 
 const stepCopy: Record<Step, { eyebrow: string; title: string; body: string }> = {
     setup: {
-        eyebrow: "Step 1 of 4",
-        title: "Connect Telegram API",
-        body: "TeleVault connects securely using your private Telegram API credentials stored locally on your device.",
+        eyebrow: "Step 1",
+        title: "Connect your Telegram API credentials",
+        body: "TeleVault uses your own Telegram API ID and hash to create a private encrypted vault session on this device.",
     },
     phone: {
-        eyebrow: "Step 2 of 4",
-        title: "Verify Phone Number",
-        body: "Enter the phone number associated with your Telegram account to initialize local end-to-end vault session.",
+        eyebrow: "Step 2",
+        title: "Verify your Telegram account",
+        body: "Enter the phone number connected to the Telegram account you want to use for encrypted storage.",
     },
     code: {
-        eyebrow: "Step 3 of 4",
-        title: "Security Verification Code",
-        body: "Enter the 5-digit verification code sent directly to your Telegram app.",
+        eyebrow: "Step 3",
+        title: "Enter the login code",
+        body: "Telegram sent a sign-in code to your account. TeleVault stores the resulting session locally.",
     },
     password: {
-        eyebrow: "Step 4 of 4",
-        title: "Two-Step Verification",
-        body: "Your Telegram account has 2-Step Verification enabled. Enter your password to unlock the encrypted drive.",
+        eyebrow: "Step 4",
+        title: "Unlock two-step verification",
+        body: "Your Telegram account has a cloud password enabled. Enter it to finish the local session setup.",
     },
 };
+
+function AuthThemeToggle() {
+    const { theme, toggleTheme } = useTheme();
+    return (
+        <button
+            type="button"
+            onClick={toggleTheme}
+            className="p-2 rounded-lg bg-white/10 hover:bg-white/15 transition-colors"
+            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        >
+            {theme === "dark" ? <Sun className="w-5 h-5 text-white" /> : <Moon className="w-5 h-5 text-white" />}
+        </button>
+    );
+}
 
 export function AuthWizard({ onLogin, savePhone }: { onLogin: () => void; savePhone: (phone: string) => void }) {
     const [step, setStep] = useState<Step>("setup");
@@ -172,151 +186,126 @@ export function AuthWizard({ onLogin, savePhone }: { onLogin: () => void; savePh
     };
 
     return (
-        <div className="h-full w-full auth-gradient flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-            <div className="w-full max-w-5xl grid lg:grid-cols-[1.1fr_420px] gap-5 items-stretch">
-                {/* Brand Hero Panel */}
-                <section className="rounded-2xl border border-white/10 dark:border-slate-800 bg-slate-900/60 dark:bg-slate-900/80 p-8 sm:p-10 flex flex-col justify-between backdrop-blur-2xl shadow-2xl relative overflow-hidden group">
-                    <div className="absolute -right-20 -top-20 w-80 h-80 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none group-hover:bg-indigo-500/25 transition-all duration-700" />
-                    <div className="absolute -left-20 -bottom-20 w-80 h-80 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none group-hover:bg-cyan-500/25 transition-all duration-700" />
-
-                    <div className="relative z-10">
+        <div className="h-full w-full auth-gradient flex items-center justify-center p-4 sm:p-6">
+            <div className="w-full max-w-6xl grid lg:grid-cols-[1fr_440px] gap-4">
+                <section className="min-h-[520px] rounded-lg border border-white/10 bg-black/25 p-6 sm:p-8 flex flex-col justify-between overflow-hidden">
+                    <div>
                         <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-3.5">
-                                <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-500 to-cyan-500 p-0.5 shadow-lg shadow-indigo-500/20">
-                                    <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center p-2">
-                                        <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="TeleVault" className="w-full h-full" />
-                                    </div>
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 rounded-lg bg-white/10 border border-white/10 p-2">
+                                    <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="TeleVault" className="w-full h-full" />
                                 </div>
                                 <div>
-                                    <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-                                        TeleVault
-                                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">v1.0 Pro</span>
-                                    </h1>
-                                    <p className="text-xs text-slate-400 font-medium">Encrypted Cloud Storage</p>
+                                    <p className="text-xs uppercase text-white/55 font-semibold">Student research build</p>
+                                    <h1 className="text-2xl font-bold text-white">TeleVault</h1>
                                 </div>
                             </div>
-                            <ThemeToggle />
+                            <AuthThemeToggle />
                         </div>
 
-                        <div className="mt-10 max-w-lg">
-                            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1.5 text-xs font-semibold text-emerald-300 backdrop-blur-md">
-                                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                                AES-256-GCM Zero-Knowledge Encryption
+                        <div className="mt-12 max-w-2xl">
+                            <div className="inline-flex items-center gap-2 rounded-md border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-200">
+                                <ShieldCheck className="w-4 h-4" />
+                                Local encryption before upload
                             </div>
-                            <h2 className="mt-6 text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
-                                Unlimited Cloud. <br />
-                                <span className="bg-gradient-to-r from-indigo-400 via-purple-300 to-cyan-400 bg-clip-text text-transparent">
-                                    Complete Privacy.
-                                </span>
+                            <h2 className="mt-5 text-4xl sm:text-5xl font-bold text-white leading-tight">
+                                A private vault on top of your Telegram account.
                             </h2>
-                            <p className="mt-4 text-sm text-slate-300 leading-relaxed font-normal">
-                                TeleVault turns your Telegram account into an unlimited, zero-knowledge encrypted drive. Your files are split, encrypted locally, and stored safely in your account.
+                            <p className="mt-5 text-base text-white/70 leading-relaxed">
+                                TeleVault encrypts files on your device, stores encrypted blocks in your Telegram account,
+                                and keeps the vault key under your control.
                             </p>
                         </div>
                     </div>
 
-                    <div className="grid sm:grid-cols-3 gap-3.5 mt-10 relative z-10">
-                        <AuthFeatureCard icon={Lock} title="Local Master Key" desc="Vault key stays 100% on your device." />
-                        <AuthFeatureCard icon={ServerCog} title="Direct Bridge" desc="Zero middleman servers or storage fees." />
-                        <AuthFeatureCard icon={Sparkles} title="High Speed" desc="Parallel multi-chunk uploading engine." />
+                    <div className="grid sm:grid-cols-3 gap-3 mt-10">
+                        <AuthInfo icon={Lock} title="Device key" body="The vault key stays local unless you export an encrypted recovery file." />
+                        <AuthInfo icon={ServerCog} title="Direct session" body="The app connects with your own Telegram API credentials." />
+                        <AuthInfo icon={KeyRound} title="Recovery aware" body="Move your vault using password-protected recovery files." />
                     </div>
                 </section>
 
-                {/* Form Wizard Glass Panel */}
-                <section className="rounded-2xl border border-white/10 dark:border-slate-800 bg-slate-900/80 dark:bg-slate-900/90 p-7 sm:p-8 shadow-2xl backdrop-blur-2xl flex flex-col justify-between relative z-10">
-                    <div>
-                        <div className="flex items-center justify-between gap-3">
-                            <span className="text-xs font-bold uppercase tracking-wider text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1 rounded-full">
-                                {current.eyebrow}
-                            </span>
-                            <button
-                                type="button"
-                                onClick={() => setShowAbout(true)}
-                                className="text-xs font-semibold text-slate-400 hover:text-white transition-colors"
-                            >
-                                About App
-                            </button>
+                <section className="rounded-lg border border-white/10 bg-telegram-surface p-6 sm:p-7 shadow-2xl">
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <p className="text-xs uppercase font-semibold text-telegram-primary">{current.eyebrow} of 4</p>
+                            <h2 className="mt-2 text-2xl font-bold text-telegram-text">{current.title}</h2>
+                            <p className="mt-2 text-sm leading-relaxed text-telegram-subtext">{current.body}</p>
                         </div>
-
-                        <h2 className="mt-5 text-2xl font-bold text-white tracking-tight">{current.title}</h2>
-                        <p className="mt-2 text-xs leading-relaxed text-slate-400">{current.body}</p>
-
-                        <div className="mt-5 h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                            <motion.div
-                                className="h-full bg-gradient-to-r from-indigo-500 to-cyan-400 rounded-full"
-                                animate={{ width: `${(progress / 4) * 100}%` }}
-                                transition={{ duration: 0.3 }}
-                            />
-                        </div>
-
-                        <div className="mt-7">
-                            <AnimatePresence mode="wait">
-                                {floodWait ? (
-                                    <motion.div key="flood" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
-                                        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
-                                            <h3 className="text-sm font-semibold text-red-200">Telegram Rate Limit Active</h3>
-                                            <p className="mt-1 text-xs text-red-300/80">Please wait for the timer before retrying.</p>
-                                        </div>
-                                        <div className="text-4xl font-mono font-bold text-center text-white py-2">
-                                            {Math.floor(floodWait / 60)}:{(floodWait % 60).toString().padStart(2, "0")}
-                                        </div>
-                                    </motion.div>
-                                ) : (
-                                    <>
-                                        {step === "setup" && (
-                                            <StepForm key="setup" onSubmit={handleSetupSubmit}>
-                                                <Field label="Telegram API ID" icon={KeyRound} value={apiId} onChange={setApiId} placeholder="e.g. 12345678" mono />
-                                                <Field label="Telegram API Hash" icon={KeyRound} value={apiHash} onChange={setApiHash} placeholder="e.g. 0123456789abcdef..." mono />
-                                                <PrimaryButton loading={loading} label="Continue to Sign In" />
-                                                <TextAction onClick={() => setShowHelp(true)} icon={HelpCircle} label="How to get API ID & Hash?" />
-                                                {import.meta.env.DEV && <TextAction onClick={onLogin} label="Open Dashboard (Dev Mode)" />}
-                                            </StepForm>
-                                        )}
-
-                                        {step === "phone" && (
-                                            <StepForm key="phone" onSubmit={handlePhoneSubmit}>
-                                                <Field label="Phone Number" icon={Phone} value={phone} onChange={setPhone} placeholder="+1 234 567 8900" />
-                                                <PrimaryButton loading={loading} label="Send Verification Code" />
-                                                <TextAction onClick={() => setStep("setup")} label="← Back to API Credentials" />
-                                            </StepForm>
-                                        )}
-
-                                        {step === "code" && (
-                                            <StepForm key="code" onSubmit={handleCodeSubmit}>
-                                                <Field label="Verification Code" icon={KeyRound} value={code} onChange={setCode} placeholder="12345" mono />
-                                                <PrimaryButton loading={loading} label="Verify & Sign In" />
-                                                <TextAction onClick={() => setStep("phone")} label="← Change Phone Number" />
-                                            </StepForm>
-                                        )}
-
-                                        {step === "password" && (
-                                            <StepForm key="password" onSubmit={handlePasswordSubmit}>
-                                                <Field label="2-Step Password" icon={Lock} value={password} onChange={setPassword} placeholder="Your Telegram 2FA password" type="password" />
-                                                <PrimaryButton loading={loading} label="Unlock Vault" disabled={!password} />
-                                                <TextAction onClick={() => setStep("code")} label="← Back to Code Entry" />
-                                            </StepForm>
-                                        )}
-                                    </>
-                                )}
-                            </AnimatePresence>
-                        </div>
-
-                        {error && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 5 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs font-medium text-red-200 flex items-center justify-between"
-                            >
-                                <span>{error}</span>
-                                <button type="button" onClick={() => setError(null)} className="text-red-400 hover:text-white">
-                                    <X className="w-4 h-4" />
-                                </button>
-                            </motion.div>
-                        )}
+                        <button
+                            type="button"
+                            onClick={() => setShowAbout(true)}
+                            className="shrink-0 rounded-lg border border-telegram-border px-3 py-2 text-xs font-semibold text-telegram-text hover:bg-telegram-hover"
+                        >
+                            About
+                        </button>
                     </div>
 
-                    <p className="mt-6 text-[11px] text-center text-slate-500 leading-relaxed">
-                        TeleVault processes all encryption locally on device. <br /> Not affiliated with Telegram FZ-LLC.
+                    <div className="mt-5 h-1.5 rounded-full bg-telegram-hover overflow-hidden">
+                        <div className="h-full bg-telegram-primary transition-all" style={{ width: `${(progress / 4) * 100}%` }} />
+                    </div>
+
+                    <div className="mt-7">
+                        <AnimatePresence mode="wait">
+                            {floodWait ? (
+                                <motion.div key="flood" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-5">
+                                    <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-4">
+                                        <h3 className="text-lg font-semibold text-red-200">Telegram rate limit active</h3>
+                                        <p className="mt-2 text-sm text-red-100/75">Wait before trying another login request.</p>
+                                    </div>
+                                    <div className="text-5xl font-mono text-telegram-text">
+                                        {Math.floor(floodWait / 60)}:{(floodWait % 60).toString().padStart(2, "0")}
+                                    </div>
+                                </motion.div>
+                            ) : (
+                                <>
+                                    {step === "setup" && (
+                                        <StepForm key="setup" onSubmit={handleSetupSubmit}>
+                                            <Field label="API ID" icon={KeyRound} value={apiId} onChange={setApiId} placeholder="12345678" mono />
+                                            <Field label="API Hash" icon={KeyRound} value={apiHash} onChange={setApiHash} placeholder="abcdef123456..." mono />
+                                            <PrimaryButton loading={loading} label="Save and continue" />
+                                            <TextAction onClick={() => setShowHelp(true)} icon={HelpCircle} label="How to get Telegram API credentials" />
+                                            {import.meta.env.DEV && <TextAction onClick={onLogin} label="Open dashboard in dev mode" />}
+                                        </StepForm>
+                                    )}
+
+                                    {step === "phone" && (
+                                        <StepForm key="phone" onSubmit={handlePhoneSubmit}>
+                                            <Field label="Phone number" icon={Phone} value={phone} onChange={setPhone} placeholder="+1 234 567 8900" />
+                                            <PrimaryButton loading={loading} label="Request login code" />
+                                            <TextAction onClick={() => setStep("setup")} label="Back to API credentials" />
+                                        </StepForm>
+                                    )}
+
+                                    {step === "code" && (
+                                        <StepForm key="code" onSubmit={handleCodeSubmit}>
+                                            <Field label="Telegram code" icon={KeyRound} value={code} onChange={setCode} placeholder="12345" mono />
+                                            <PrimaryButton loading={loading} label="Verify code" />
+                                            <TextAction onClick={() => setStep("phone")} label="Use a different phone number" />
+                                        </StepForm>
+                                    )}
+
+                                    {step === "password" && (
+                                        <StepForm key="password" onSubmit={handlePasswordSubmit}>
+                                            <Field label="Two-step password" icon={Lock} value={password} onChange={setPassword} placeholder="Telegram cloud password" type="password" />
+                                            <PrimaryButton loading={loading} label="Unlock vault session" disabled={!password} />
+                                            <TextAction onClick={() => setStep("code")} label="Back to code entry" />
+                                        </StepForm>
+                                    )}
+                                </>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
+                    {error && (
+                        <div className="mt-5 rounded-lg border border-red-500/25 bg-red-500/10 p-3 text-sm text-red-200">
+                            {error}
+                        </div>
+                    )}
+
+                    <p className="mt-6 text-xs leading-relaxed text-telegram-subtext">
+                        TeleVault is not an official Telegram product. It is an educational student project for
+                        experimenting with user-side encryption and personal storage.
                     </p>
                 </section>
             </div>
@@ -330,9 +319,9 @@ export function AuthWizard({ onLogin, savePhone }: { onLogin: () => void; savePh
 function StepForm({ children, onSubmit }: { children: ReactNode; onSubmit: (event: FormEvent) => void }) {
     return (
         <motion.form
-            initial={{ opacity: 0, y: 6 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
+            exit={{ opacity: 0, y: -8 }}
             onSubmit={onSubmit}
             className="space-y-4"
         >
@@ -360,15 +349,15 @@ function Field({
 }) {
     return (
         <label className="block">
-            <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">{label}</span>
+            <span className="block text-xs font-semibold uppercase text-telegram-subtext mb-2">{label}</span>
             <span className="relative block">
-                <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Icon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-telegram-subtext" />
                 <input
                     type={type}
                     value={value}
                     onChange={(event) => onChange(event.target.value)}
                     placeholder={placeholder}
-                    className={`w-full rounded-xl border border-white/10 bg-slate-950/60 pl-10 pr-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all ${mono ? "font-mono text-xs" : ""}`}
+                    className={`w-full rounded-lg border border-telegram-border bg-telegram-bg px-10 py-3 text-telegram-text placeholder:text-telegram-subtext focus:outline-none focus:border-telegram-primary ${mono ? "font-mono" : ""}`}
                 />
             </span>
         </label>
@@ -380,9 +369,9 @@ function PrimaryButton({ label, loading, disabled }: { label: string; loading?: 
         <button
             type="submit"
             disabled={loading || disabled}
-            className="w-full rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 px-4 py-3 font-semibold text-sm text-white shadow-lg shadow-indigo-500/25 hover:from-indigo-400 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.99]"
+            className="w-full rounded-lg bg-telegram-primary px-4 py-3 font-bold text-black hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
-            {loading ? "Connecting..." : label}
+            {loading ? "Working..." : label}
             {!loading && <ArrowRight className="w-4 h-4" />}
         </button>
     );
@@ -393,22 +382,20 @@ function TextAction({ label, onClick, icon: Icon }: { label: string; onClick: ()
         <button
             type="button"
             onClick={onClick}
-            className="w-full rounded-xl px-3 py-2 text-xs font-semibold text-slate-400 hover:text-white hover:bg-white/5 flex items-center justify-center gap-2 transition-colors"
+            className="w-full rounded-lg px-3 py-2 text-sm font-medium text-telegram-subtext hover:bg-telegram-hover hover:text-telegram-text flex items-center justify-center gap-2"
         >
-            {Icon && <Icon className="w-3.5 h-3.5" />}
+            {Icon && <Icon className="w-4 h-4" />}
             {label}
         </button>
     );
 }
 
-function AuthFeatureCard({ icon: Icon, title, desc }: { icon: typeof Lock; title: string; desc: string }) {
+function AuthInfo({ icon: Icon, title, body }: { icon: typeof Lock; title: string; body: string }) {
     return (
-        <div className="rounded-xl border border-white/5 bg-slate-950/40 p-3.5 backdrop-blur-md">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-2.5">
-                <Icon className="w-4 h-4 text-indigo-400" />
-            </div>
-            <p className="text-xs font-bold text-white">{title}</p>
-            <p className="mt-1 text-[11px] leading-relaxed text-slate-400">{desc}</p>
+        <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+            <Icon className="w-5 h-5 text-telegram-primary" />
+            <p className="mt-3 text-sm font-semibold text-white">{title}</p>
+            <p className="mt-1 text-xs leading-relaxed text-white/60">{body}</p>
         </div>
     );
 }
@@ -419,45 +406,37 @@ function ApiHelpModal({ onClose }: { onClose: () => void }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={onClose}
         >
             <motion.section
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.96 }}
-                className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 12 }}
+                className="w-full max-w-lg rounded-lg border border-telegram-border bg-telegram-surface p-6 shadow-2xl"
                 onClick={(event) => event.stopPropagation()}
             >
                 <div className="flex items-start justify-between gap-3">
                     <div>
-                        <h2 className="text-lg font-bold text-white">How to Get Telegram API Key</h2>
-                        <p className="mt-1 text-xs text-slate-400">Telegram API credentials allow TeleVault to communicate with Telegram servers.</p>
+                        <h2 className="text-xl font-bold text-telegram-text">Telegram API credentials</h2>
+                        <p className="mt-2 text-sm text-telegram-subtext">TeleVault needs your own API ID and hash to create a local Telegram session.</p>
                     </div>
-                    <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:text-white hover:bg-white/10">
-                        <X className="w-4 h-4" />
+                    <button type="button" onClick={onClose} className="rounded-lg p-2 text-telegram-subtext hover:bg-telegram-hover hover:text-telegram-text">
+                        <X className="w-5 h-5" />
                     </button>
                 </div>
 
-                <ol className="mt-4 space-y-3 text-xs text-slate-300">
-                    <li className="flex items-start gap-2.5">
-                        <span className="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center shrink-0">1</span>
-                        <span>Visit <strong className="text-white">my.telegram.org</strong> and enter your phone number.</span>
-                    </li>
-                    <li className="flex items-start gap-2.5">
-                        <span className="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center shrink-0">2</span>
-                        <span>Click on <strong className="text-white">API development tools</strong>.</span>
-                    </li>
-                    <li className="flex items-start gap-2.5">
-                        <span className="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center shrink-0">3</span>
-                        <span>Fill in app details (App title: TeleVault) to get your <strong className="text-white">api_id</strong> & <strong className="text-white">api_hash</strong>.</span>
-                    </li>
+                <ol className="mt-5 space-y-4 text-sm text-telegram-subtext">
+                    <li><strong className="text-telegram-text">1.</strong> Open my.telegram.org and sign in.</li>
+                    <li><strong className="text-telegram-text">2.</strong> Choose API development tools.</li>
+                    <li><strong className="text-telegram-text">3.</strong> Create an application and copy the API ID and API hash.</li>
+                    <li><strong className="text-telegram-text">4.</strong> Paste them into TeleVault. They stay on this device.</li>
                 </ol>
 
                 <button
                     type="button"
                     onClick={() => open("https://my.telegram.org")}
-                    className="mt-6 w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-500 flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25 transition-all"
+                    className="mt-6 w-full rounded-lg bg-telegram-primary px-4 py-3 font-bold text-black hover:brightness-110 flex items-center justify-center gap-2"
                 >
                     <ExternalLink className="w-4 h-4" />
                     Open my.telegram.org
@@ -466,4 +445,3 @@ function ApiHelpModal({ onClose }: { onClose: () => void }) {
         </motion.div>
     );
 }
-

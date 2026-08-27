@@ -1,46 +1,46 @@
-import { useEffect, useState } from "react";
-import { isAndroidNative } from "../lib/api";
-
-const HEALTH_URL = "http://127.0.0.1:8765/health";
-const POLL_INTERVAL_MS = 30000;
+import { useState, useEffect } from 'react';
+import { isAndroidNative } from '../lib/api';
 
 /**
- * Watches backend reachability. On native Android the local bridge owns the
- * connection, so we assume online and skip polling entirely.
+ * Network detection for Tauri apps using lightweight backend check
+ * 
+ * Uses cmd_is_network_available which does a simple TCP connection test
+ * to Telegram servers without using grammers (avoids stack overflow).
+ * 
+ * Polls every 10 seconds - very lightweight (~2ms per check).
  */
-export function useNetworkStatus(): boolean {
-  const [online, setOnline] = useState(true);
+export function useNetworkStatus() {
+    const [isOnline, setIsOnline] = useState(true);
 
-  useEffect(() => {
-    if (isAndroidNative()) {
-      setOnline(true);
-      return;
-    }
+    useEffect(() => {
+        if (isAndroidNative()) {
+            setIsOnline(true);
+            return;
+        }
 
-    const probe = async (): Promise<void> => {
-      try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 4000);
-        const response = await fetch(HEALTH_URL, { signal: controller.signal });
-        clearTimeout(timer);
-        setOnline(response.ok);
-      } catch {
-        setOnline(false);
-      }
-    };
+        // Import Tauri invoke
+        import('@tauri-apps/api/core').then(({ invoke }) => {
+            // Check network status
+            const checkNetwork = async () => {
+                try {
+                    // Use the lightweight TCP check (no grammers involved)
+                    const available = await invoke<boolean>('cmd_is_network_available');
+                    setIsOnline(available);
+                } catch (error) {
+                    // If the command fails, assume offline
+                    setIsOnline(false);
+                }
+            };
 
-    probe();
-    const interval = setInterval(probe, POLL_INTERVAL_MS);
+            // Initial check
+            checkNetwork();
 
-    const onBrowserOnline = () => setOnline(true);
+            // Poll every 10 seconds (very lightweight, ~2ms per check)
+            const interval = setInterval(checkNetwork, 30000);
 
-    window.addEventListener("online", onBrowserOnline);
+            return () => clearInterval(interval);
+        });
+    }, []);
 
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("online", onBrowserOnline);
-    };
-  }, []);
-
-  return online;
+    return isOnline;
 }

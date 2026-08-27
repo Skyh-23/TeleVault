@@ -45,13 +45,26 @@ export function ShareFileModal({ file, activeFolderId, onClose }: ShareFileModal
     const {
         data: shares = [],
         isLoading,
+        isError,
+        error: sharesError,
         refetch,
     } = useQuery({
         queryKey: ['shares', file.id],
         queryFn: () => api.listShares(file.id, true),
+        retry: false,
+        // Crash fix: if shares endpoint is missing (older mobile build) or returns
+        // malformed data, don't kill the whole app — show empty state instead.
+        throwOnError: false,
     });
 
-    const activeShares = useMemo(() => shares.filter(s => s.active), [shares]);
+    const activeShares = useMemo(() => {
+        if (!Array.isArray(shares)) return [];
+        try {
+            return shares.filter(s => s?.active);
+        } catch {
+            return [];
+        }
+    }, [shares]);
 
     const handleCreateShare = async () => {
         const hours = Number(expiryHours);
@@ -240,6 +253,11 @@ export function ShareFileModal({ file, activeFolderId, onClose }: ShareFileModal
 
                     {isLoading ? (
                         <div className="text-sm text-telegram-subtext">Loading shares...</div>
+                    ) : isError ? (
+                        <div className="text-sm text-red-400">
+                            Could not load shares: {String((sharesError as Error)?.message || sharesError || 'unknown error')}
+                            <button onClick={() => refetch()} className="ml-2 underline">Retry</button>
+                        </div>
                     ) : activeShares.length === 0 ? (
                         <div className="text-sm text-telegram-subtext">No active share links for this file.</div>
                     ) : (

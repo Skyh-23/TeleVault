@@ -3,7 +3,7 @@ TeleVault Config
 ================
 Application-wide constants, paths, and settings.
 
-Author: Liethueis-Foundation © 2026
+Author: Hiren Sumra — Liethueis Foundation © 2026
 """
 
 import os

@@ -9,7 +9,7 @@ Usage:
   python main.py           # Full app (PyWebView + server)
   python main.py --dev     # Dev mode (server only, no PyWebView)
 
-Author: Liethueis-Foundation © 2026
+Author: Hiren Sumra — Liethueis Foundation © 2026
 """
 
 import sys

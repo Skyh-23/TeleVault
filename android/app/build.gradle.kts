@@ -16,8 +16,10 @@ android {
         versionName = "1.0.0"
 
         ndk {
-            // Include 32-bit ARM so release APKs install on older/budget phones.
-            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86_64")
+            // Chaquopy + Python 3.12 only supports 64-bit ABIs (arm64-v8a, x86_64).
+            // Python 3.12 is not available for armeabi-v7a/x86 - build fails if included.
+            // This covers 99%+ of modern devices; Play Store requires 64-bit anyway.
+            abiFilters += listOf("arm64-v8a", "x86_64")
         }
     }
 
@@ -28,8 +30,8 @@ android {
 
 chaquopy {
     defaultConfig {
-        version = "3.10"
-        buildPython("C:/Users/Lenovo/AppData/Roaming/uv/python/cpython-3.10.20-windows-x86_64-none/python.exe")
+        version = "3.12"
+        buildPython("C:/Python312/python.exe") // Change to your local Python 3.12 path, e.g. "C:/Users/YOURNAME/AppData/Local/Programs/Python/Python312/python.exe"
         pip {
             install("-r", "requirements.txt")
         }

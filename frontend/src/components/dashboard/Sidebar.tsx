@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { HardDrive, Folder, Plus, RefreshCw, LogOut, Layers, Info, Shield } from 'lucide-react';
+import { HardDrive, Folder, Plus, RefreshCw, LogOut, Layers, Info, KeyRound } from 'lucide-react';
 import { SidebarItem } from './SidebarItem';
 import { BandwidthWidget } from './BandwidthWidget';
 import { TelegramFolder, BandwidthStats } from '../../types';
@@ -42,30 +42,14 @@ export function Sidebar({
     }
 
     return (
-        <aside className="w-64 bg-slate-900/80 dark:bg-slate-950/90 border-r border-white/10 dark:border-slate-800/80 flex flex-col backdrop-blur-xl relative z-20" onClick={e => e.stopPropagation()}>
-            {/* Header Brand */}
-            <div className="p-4 flex items-center justify-between border-b border-white/5 dark:border-slate-800/60">
-                <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-cyan-500 p-0.5 shadow-md shadow-indigo-500/20">
-                        <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center p-1.5">
-                            <img src={`${import.meta.env.BASE_URL}logo.svg`} className="w-full h-full" alt="Logo" />
-                        </div>
-                    </div>
-                    <div>
-                        <span className="font-bold text-sm text-white tracking-tight block">TeleVault</span>
-                        <span className="text-[10px] text-slate-400 font-medium">Encrypted Storage</span>
-                    </div>
-                </div>
-
-                <div className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-rose-500'}`} title={isConnected ? "Connected to Telegram" : "Disconnected"} />
+        <aside className="w-64 bg-telegram-surface border-r border-telegram-border flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="p-4 flex items-center gap-2">
+                <img src={`${import.meta.env.BASE_URL}logo.svg`} className="w-8 h-8 drop-shadow-lg" alt="Logo" />
+                <span className="font-bold text-lg text-telegram-text tracking-tight">TeleVault</span>
             </div>
 
-            {/* Folder Navigation */}
-            <div className="px-3 pt-4 pb-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 block mb-2">Vault Folders</span>
-            </div>
-
-            <nav className="flex-1 px-2.5 space-y-1 overflow-y-auto min-h-0">
+            {/* Scrollable folder list */}
+            <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto min-h-0">
                 <SidebarItem
                     icon={HardDrive}
                     label={mobileVault ? "Mobile Vault" : "Saved Messages"}
@@ -88,15 +72,15 @@ export function Sidebar({
                 ))}
             </nav>
 
-            {/* Create Folder & Sync Controls */}
-            <div className="p-3 border-t border-white/5 dark:border-slate-800/60 space-y-2">
+            {/* Sticky create-folder section stays visible above the footer. */}
+            <div className="px-2 pb-2 border-b border-telegram-border space-y-2">
                 {showNewFolderInput ? (
-                    <div className="p-1">
+                    <div className="px-3 py-2">
                         <input
                             autoFocus
                             type="text"
-                            className="w-full bg-slate-950 rounded-xl px-3 py-2 text-xs text-white border border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            placeholder="New Folder Name..."
+                            className="w-full bg-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-telegram-primary"
+                            placeholder="Folder Name"
                             value={newFolderName}
                             onChange={e => setNewFolderName(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && submitCreate()}
@@ -106,62 +90,67 @@ export function Sidebar({
                 ) : (
                     <button
                         onClick={() => setShowNewFolderInput(true)}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all border border-dashed border-white/10 dark:border-slate-800"
+                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-telegram-subtext hover:bg-telegram-hover hover:text-telegram-text transition-colors border border-dashed border-telegram-border"
                     >
-                        <Plus className="w-4 h-4 text-indigo-400" />
-                        Create New Folder
+                        <Plus className="w-4 h-4" />
+                        Create Folder
                     </button>
                 )}
                 
                 <button
                     onClick={onSyncAll}
                     disabled={isSyncing}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all border border-dashed border-white/10 dark:border-slate-800 disabled:opacity-50"
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-telegram-subtext hover:bg-telegram-hover hover:text-telegram-text transition-colors border border-dashed border-telegram-border disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    <Layers className="w-4 h-4 text-cyan-400" />
-                    {mobileVault ? "Refresh All Folders" : "Sync All Folders"}
+                    <Layers className="w-4 h-4" />
+                    {mobileVault ? "Refresh Folders" : "Sync All Folders"}
                 </button>
             </div>
 
-            {/* Bottom Actions Footer */}
-            <div className="p-3 border-t border-white/5 dark:border-slate-800/60 bg-slate-950/40 space-y-2">
-                <div className="grid grid-cols-2 gap-2">
+            <div className="p-4 border-t border-telegram-border">
+                <div className="flex items-center gap-2 text-telegram-subtext text-xs">
+                    <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                    <span>{mobileVault ? 'Local encrypted mobile vault' : (isConnected ? 'Connected to Telegram' : 'Disconnected from Telegram')}</span>
+                </div>
+
+                <div className="flex gap-2 mt-4">
                     <button
                         onClick={onSync}
                         disabled={isSyncing}
-                        className={`flex items-center justify-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 rounded-xl transition-all ${isSyncing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-blue-500 hover:text-blue-600 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg transition-colors ${isSyncing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        title="Scan for existing folders"
                     >
-                        <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                        {isSyncing ? 'Syncing' : 'Sync'}
+                        <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
+                        {isSyncing ? 'Syncing...' : 'Sync'}
                     </button>
                     <button
                         onClick={onLogout}
-                        className="flex items-center justify-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-xl transition-all"
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-red-500 hover:text-red-600 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition-colors"
+                        title="Sign Out"
                     >
-                        <LogOut className="w-3.5 h-3.5" />
-                        Sign Out
+                        <LogOut className="w-3 h-3" />
+                        Logout
                     </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                    <button
-                        onClick={onShowAbout}
-                        className="flex items-center justify-center gap-1.5 px-2.5 py-2 text-[11px] font-semibold text-slate-300 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 transition-all"
-                    >
-                        <Info className="w-3.5 h-3.5 text-indigo-400" />
-                        About
-                    </button>
-                    <button
-                        onClick={onOpenVaultRecovery}
-                        className="flex items-center justify-center gap-1.5 px-2.5 py-2 text-[11px] font-semibold text-slate-300 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 transition-all"
-                    >
-                        <Shield className="w-3.5 h-3.5 text-indigo-400" />
-                        Backup
-                    </button>
-                </div>
+                <button
+                    onClick={onShowAbout}
+                    className="w-full mt-2 flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold text-black bg-telegram-primary hover:brightness-110 rounded-lg shadow-sm transition-all"
+                >
+                    <Info className="w-3.5 h-3.5" />
+                    About TeleVault · v1.6
+                </button>
+                <button
+                    onClick={onOpenVaultRecovery}
+                    className="w-full mt-2 flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold text-white bg-telegram-secondary hover:brightness-110 rounded-lg shadow-sm transition-all"
+                >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    Recovery & Backup
+                </button>
 
                 {bandwidth && <BandwidthWidget bandwidth={bandwidth} />}
             </div>
+
         </aside>
-    );
+    )
 }

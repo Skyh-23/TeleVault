@@ -425,7 +425,7 @@ export function Dashboard({ onLogout }: { onLogout: () => void }) {
 
     return (
         <div
-            className="flex h-screen w-full overflow-hidden bg-slate-950 relative"
+            className="flex h-screen w-full overflow-hidden bg-telegram-bg relative"
             onClick={() => setSelectedIds([])}
             onDragOver={handleRootDragOver}
             onDragEnter={handleRootDragEnter}
@@ -519,9 +519,9 @@ export function Dashboard({ onLogout }: { onLogout: () => void }) {
                 />
                 {searchTerm.length > 2 && (
                     <div className="px-6 pt-4 pb-0">
-                        <p className="text-xs font-semibold text-slate-400">
-                            Search results for <span className="text-indigo-400 font-bold">"{searchTerm}"</span>
-                        </p>
+                        <h2 className="text-sm font-medium text-telegram-subtext">
+                            Search Results for <span className="text-telegram-primary">"{searchTerm}"</span>
+                        </h2>
                     </div>
                 )}
                 <FileExplorer
